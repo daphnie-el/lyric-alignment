@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@10.14.0",
   "engines": {
-    "node": ">=22.5.0"
+    "node": "^22.13.0 || >=24"
   },
   "scripts": {
     "dev": "pnpm -r --parallel run dev",
@@ -12,12 +12,20 @@
     "reset": "pnpm --filter @fixture/api run reset",
     "build": "pnpm --filter @fixture/web run build",
     "typecheck": "pnpm --filter @fixture/web run typecheck",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix --max-warnings=0",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "postinstall": "node scripts/postinstall.mjs"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.1"
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.49.1",
+    "eslint": "^10.13.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.2"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

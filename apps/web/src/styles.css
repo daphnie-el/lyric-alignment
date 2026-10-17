@@ -137,23 +137,6 @@ textarea {
   color: inherit;
 }
 
-button {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: var(--color-surface);
-  cursor: pointer;
-}
-
-button:hover:not(:disabled) {
-  background: var(--color-elevated);
-  border-color: var(--color-text-muted);
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 
 input,
 select,
@@ -198,22 +181,85 @@ audio {
 }
 
 @layer components {
+  .input-field {
+    display: inline-flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .input {
+    min-width: 0;
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .input[aria-invalid="true"] {
+    border-color: var(--color-danger);
+    outline-color: var(--color-danger);
+  }
+
+  .input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .input-error {
+    color: var(--color-danger);
+    font-size: 0.875rem;
+  }
+
   .load-error {
     padding: var(--space-3);
     border-radius: var(--radius);
     background: var(--color-danger-bg);
   }
 
-  .danger-button {
-    color: var(--color-danger);
-    border-color: var(--color-danger);
-    background: var(--color-danger-bg);
+  .button {
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--button-border, var(--color-border));
+    border-radius: var(--radius);
+    background: var(--button-background, var(--color-surface));
+    color: var(--button-text, var(--color-text));
+    cursor: pointer;
   }
 
-  .danger-button:hover:not(:disabled) {
-    color: var(--color-danger-hover);
-    border-color: var(--color-danger-hover);
-    background: var(--color-danger-bg);
+  .button:hover:not(:disabled) {
+    background: var(--button-hover-background, var(--color-elevated));
+    color: var(--button-hover-text, var(--button-text, var(--color-text)));
+    border-color: var(--button-hover-border, var(--button-border, var(--color-text-muted)));
+  }
+
+  .button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .button[data-color="primary"] {
+    --button-background: var(--color-primary);
+    --button-text: var(--color-on-primary);
+    --button-border: var(--color-primary);
+    --button-hover-background: color-mix(in srgb, var(--color-primary) 85%, var(--color-text));
+  }
+
+  .button[data-color="danger"] {
+    --button-background: var(--color-danger-bg);
+    --button-text: var(--color-danger);
+    --button-border: var(--color-danger);
+    --button-hover-background: var(--color-danger-bg);
+    --button-hover-text: var(--color-danger-hover);
+    --button-hover-border: var(--color-danger-hover);
+  }
+
+  .button[data-color="success"] {
+    --button-background: color-mix(in srgb, var(--color-success) 12%, var(--color-surface));
+    --button-text: var(--color-success);
+    --button-border: var(--color-success);
+    --button-hover-background: color-mix(in srgb, var(--color-success) 20%, var(--color-surface));
   }
 
   .editor-shell {

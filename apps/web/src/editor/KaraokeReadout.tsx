@@ -1,0 +1,37 @@
+import { useEditorState } from "./EditorContext";
+export default function KaraokeReadout() {
+  const { track, selectedLineId } = useEditorState();
+  const index =
+    track?.lines.findIndex((line) => line.id === selectedLineId) ?? -1;
+  return (
+    <section
+      aria-labelledby="preview-heading"
+      className="rounded-lg border border-(--color-border) bg-(--color-surface) p-6 text-center"
+    >
+      <h2 id="preview-heading" className="eyebrow">
+        Karaoke · selection preview
+      </h2>
+      <div
+        aria-live="polite"
+        aria-atomic="true"
+        className="flex min-h-32 flex-col justify-center gap-3"
+      >
+        {track && index >= 0 ? (
+          <>
+            <p className="m-0 wrap-break-word text-sm">
+              {track.lines[index - 1]?.text}
+            </p>
+            <p className="m-0 wrap-break-word text-2xl font-semibold text(--color-text)]">
+              {track.lines[index].text}
+            </p>
+            <p className="m-0 wrap-break-word text-sm">
+              {track.lines[index + 1]?.text}
+            </p>
+          </>
+        ) : (
+          <p className="m-0">Select a line to preview it here.</p>
+        )}
+      </div>
+    </section>
+  );
+}
