@@ -1,28 +1,25 @@
-/*
- * Boilerplate. Not a design, and not a hint about one.
- *
- * This file exists so the starting page is not raw browser default: a font
- * stack, a colour scheme that follows the OS, and readable defaults for the
- * handful of elements the placeholder renders. Nothing in here is load-bearing
- * and nothing in here is graded. Rename it, replace it with Tailwind or CSS
- * modules or styled-components, or delete it and start from nothing — all four
- * are fine.
- *
- * Deliberately absent: layout. No grid, no panes, no component classes. How the
- * editor is arranged is one of the choices the exercise is asking you to make,
- * so the scaffold does not make it for you.
- */
+@import "tailwindcss";
 
+/* Keep scaffold defaults below Tailwind utilities in the cascade. */
+@layer base {
 :root {
-  /* Colour: light by default, dark below. Swap the values, or the whole idea. */
-  --bg: #fbfbfa;
-  --surface: #ffffff;
-  --border: #e3e2df;
-  --text: #1c1b19;
-  --text-muted: #6b6862;
-  --accent: #2f6f4f;
-  --accent-contrast: #ffffff;
-  --danger: #a33a2c;
+  color-scheme: light;
+
+  --color-primary: #7C3AED;
+  --color-background: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-elevated: #F1F5F9;
+
+  --color-text: #111827;
+  --color-text-muted: #64748B;
+  --color-border: #E2E8F0;
+
+  --color-danger: #DC2626;
+  --color-danger-hover: #B91C1C;
+  --color-danger-bg: #FEE2E2;
+
+  --color-success: #047857;
+  --color-on-primary: #FFFFFF;
 
   --radius: 6px;
   --space-1: 4px;
@@ -37,20 +34,25 @@
   --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas,
     'Liberation Mono', monospace;
 
-  color-scheme: light dark;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #17181a;
-    --surface: #1f2124;
-    --border: #33363b;
-    --text: #e8e8e6;
-    --text-muted: #9a9c9f;
-    --accent: #63b98c;
-    --accent-contrast: #10231a;
-    --danger: #e08472;
-  }
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-primary: #8B5CF6;
+  --color-background: #101116;
+  --color-surface: #1C1D26;
+  --color-elevated: #272936;
+
+  --color-text: #F8FAFC;
+  --color-text-muted: #A1A1AA;
+  --color-border: #343645;
+
+  --color-danger: #F87171;
+  --color-danger-hover: #FCA5A5;
+  --color-danger-bg: #451F28;
+
+  --color-success: #34D399;
 }
 
 *,
@@ -66,19 +68,16 @@ body {
 }
 
 body {
-  background: var(--bg);
-  color: var(--text);
+  background: var(--color-background);
+  color: var(--color-text);
   font-family: var(--font-sans);
   font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Padding only, so the placeholder is not glued into the corner. Drop it if
- * you want a full-bleed editor. */
 #root {
   min-height: 100%;
-  padding: var(--space-6);
 }
 
 h1,
@@ -104,11 +103,11 @@ h3 {
 
 p {
   margin: 0 0 var(--space-3);
-  color: var(--text-muted);
+  color: var(--color-text-muted);
 }
 
 a {
-  color: var(--accent);
+  color: var(--color-primary);
   text-underline-offset: 2px;
 }
 
@@ -122,10 +121,10 @@ samp {
 
 kbd {
   padding: 1px var(--space-1);
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-border);
   border-bottom-width: 2px;
   border-radius: 4px;
-  background: var(--surface);
+  background: var(--color-surface);
 }
 
 /* Form controls, because the browser defaults for these are the loudest part
@@ -140,14 +139,15 @@ textarea {
 
 button {
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: var(--color-surface);
   cursor: pointer;
 }
 
 button:hover:not(:disabled) {
-  border-color: var(--text-muted);
+  background: var(--color-elevated);
+  border-color: var(--color-text-muted);
 }
 
 button:disabled {
@@ -159,9 +159,9 @@ input,
 select,
 textarea {
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: var(--color-surface);
 }
 
 textarea {
@@ -170,7 +170,7 @@ textarea {
 
 /* One visible focus ring for everything, rather than three different ones. */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 
@@ -180,8 +180,8 @@ audio {
 }
 
 ::selection {
-  background: var(--accent);
-  color: var(--accent-contrast);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
 }
 
 /* Nothing animates on load — an entry transition would make the Playwright
@@ -193,5 +193,111 @@ audio {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+}
+
+@layer components {
+  .load-error {
+    padding: var(--space-3);
+    border-radius: var(--radius);
+    background: var(--color-danger-bg);
+  }
+
+  .danger-button {
+    color: var(--color-danger);
+    border-color: var(--color-danger);
+    background: var(--color-danger-bg);
+  }
+
+  .danger-button:hover:not(:disabled) {
+    color: var(--color-danger-hover);
+    border-color: var(--color-danger-hover);
+    background: var(--color-danger-bg);
+  }
+
+  .editor-shell {
+    background: var(--color-background);
+  }
+
+  .editor-toolbar, .lyrics-pane, .inspector {
+    background: var(--color-surface);
+  }
+
+  .editor-toolbar audio {
+    width: min(100%, 340px);
+    min-width: 0;
+  }
+
+  .eyebrow {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+
+  .editor-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lyrics-pane {
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .lyric-list {
+    list-style: none;
+    max-height: 360px;
+    scrollbar-gutter: stable;
+  }
+
+  .lyric-button[aria-pressed="true"] {
+    border-color: var(--color-primary);
+    box-shadow: inset 3px 0 var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+  }
+
+  .timeline-placeholder {
+    background: var(--color-elevated);
+    min-height: 240px;
+  }
+
+  .inspector {
+    border-top: 1px solid var(--color-border);
+  }
+
+  @media (min-width: 1100px) {
+    .editor-shell {
+      height: 100dvh;
+      min-height: 680px;
+    }
+
+    .editor-grid {
+      grid-template-columns: 300px minmax(0, 1fr) 260px;
+      overflow: hidden;
+    }
+
+    .lyrics-pane {
+      border-bottom: 0;
+      border-right: 1px solid var(--color-border);
+      overflow-y: auto;
+    }
+
+    .lyric-list {
+      max-height: none;
+    }
+
+    .workspace {
+      overflow-y: auto;
+    }
+
+    .inspector {
+      border-top: 0;
+      border-left: 1px solid var(--color-border);
+      overflow-y: auto;
+    }
   }
 }
