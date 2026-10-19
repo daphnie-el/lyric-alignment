@@ -55,6 +55,9 @@ It is already wired into the frontend's fetch wrapper, `apps/web/src/api.ts`.
 
 ## Talking to the API
 
+For the implemented editor save workflow, API payload, and unsaved-change
+protection, see [Saving timeline changes](decisions.md#manual-timeline-saving).
+
 One example, which is also the only place you need to start:
 
 ```bash

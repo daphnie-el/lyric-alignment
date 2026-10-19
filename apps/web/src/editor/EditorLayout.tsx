@@ -1,3 +1,4 @@
+import { DragDropProvider, DragOverlay, KeyboardSensor, PointerSensor } from "@dnd-kit/react";
 import { Button } from "../components/Button";
 import { useEditorDispatch, useEditorState } from "./EditorContext";
 import KaraokeReadout from "./KaraokeReadout";
@@ -5,6 +6,11 @@ import LyricsPane from "./LyricsPane";
 import SelectionInspector from "./SelectionInspector";
 import Timeline from "./Timeline";
 import Toolbar from "./Toolbar";
+
+const sensors = [
+  PointerSensor.configure({ preventActivation: (_event, source) => source.data.placed === true }),
+  KeyboardSensor.configure({ preventActivation: (event, source) => event.key === "Enter" || source.data.placed === true || source.data.kind === "segment" }),
+];
 
 function LoadStatus() {
   const { status, error } = useEditorState();
@@ -36,6 +42,7 @@ function LoadStatus() {
 
 export function EditorLayout() {
   return (
+    <DragDropProvider sensors={sensors}>
     <main className="editor-shell flex min-h-screen flex-col">
       <Toolbar />
       <LoadStatus />
@@ -48,5 +55,7 @@ export function EditorLayout() {
         <SelectionInspector />
       </div>
     </main>
+    <DragOverlay dropAnimation={null}>{source => <div className="timeline-drag-overlay">{String(source.data.text ?? "")}</div>}</DragOverlay>
+    </DragDropProvider>
   );
 }

@@ -31,5 +31,8 @@
     "onlyBuiltDependencies": [
       "esbuild"
     ]
+  },
+  "dependencies": {
+    "@dnd-kit/react": "^0.5.1"
   }
 }

@@ -1,6 +1,19 @@
-import { EditorProvider } from './editor/EditorContext';
-import { EditorLayout } from './editor/EditorLayout';
+import { Toaster } from "sonner";
+import { EditorProvider } from "./editor/EditorContext";
+import { EditorLayout } from "./editor/EditorLayout";
 
 export default function App() {
-  return <EditorProvider><EditorLayout /></EditorProvider>;
+  return (
+    <>
+      <Toaster
+        position="bottom-right"
+        theme="system"
+        closeButton
+        duration={4000}
+      />
+      <EditorProvider>
+        <EditorLayout />
+      </EditorProvider>
+    </>
+  );
 }

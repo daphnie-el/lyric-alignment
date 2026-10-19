@@ -6,20 +6,18 @@ import {
 } from "react";
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
-  /** A message to display below the input, or true for the error style alone. */
   error?: boolean | string;
-  /** Allow digits only, including when pasting. */
   numbersOnly?: boolean;
+  timeOnly?: boolean;
 }
 
-function digitsOnly(value: InputProps["value"]): string {
-  return String(value ?? "").replace(/\D/g, "");
-}
+const PARTIAL_TIME_REGEX = /^\d*(?::[0-5]?\d?(?:\.\d{0,3})?)?$/;
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   {
     error,
     numbersOnly = false,
+    timeOnly = false,
     className,
     id,
     type = "text",
@@ -40,16 +38,21 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   const errorId = errorMessage ? `${inputId}-error` : undefined;
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
-    if (numbersOnly) {
-      const input = event.currentTarget;
-      const original = input.value;
-      const cursor = input.selectionStart ?? original.length;
-      const position = digitsOnly(original.slice(0, cursor)).length;
-      input.value = digitsOnly(original);
-      input.setSelectionRange(position, position);
+    if (timeOnly) {
+      if (!PARTIAL_TIME_REGEX.test(event.currentTarget.value)) {
+        return;
+      }
+    } else if (numbersOnly) {
+      event.currentTarget.value = event.currentTarget.value.replace(
+        /[^\d.]/g,
+        "",
+      );
     }
+
     onChange?.(event);
   }
+
+  const isRestricted = numbersOnly || timeOnly;
 
   return (
     <span className="input-field">
@@ -58,15 +61,15 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         ref={ref}
         id={inputId}
         className={className ? `input ${className}` : "input"}
-        type={numbersOnly ? "text" : type}
-        inputMode={numbersOnly ? "numeric" : inputMode}
+        type={isRestricted ? "text" : type}
+        inputMode={numbersOnly ? "decimal" : inputMode}
         placeholder={placeholder}
-        value={numbersOnly && value !== undefined ? digitsOnly(value) : value}
-        defaultValue={numbersOnly && defaultValue !== undefined
-          ? digitsOnly(defaultValue)
-          : defaultValue}
+        value={value}
+        defaultValue={defaultValue}
         aria-invalid={error ? true : ariaInvalid}
-        aria-describedby={[describedBy, errorId].filter(Boolean).join(" ") || undefined}
+        aria-describedby={
+          [describedBy, errorId].filter(Boolean).join(" ") || undefined
+        }
         onChange={handleChange}
       />
       {errorMessage ? (

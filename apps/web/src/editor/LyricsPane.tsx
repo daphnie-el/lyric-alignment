@@ -1,9 +1,10 @@
+import { useDraggable } from "@dnd-kit/react";
 import { Button } from "../components/Button";
+import type { LyricLine, Segment } from "./EditorContext";
 import { useEditorDispatch, useEditorState } from "./EditorContext";
 import { formatTime } from "./formatTime";
 export default function LyricsPane() {
   const { track, selectedLineId, status } = useEditorState();
-  const dispatch = useEditorDispatch();
   const placed =
     track?.lines.filter((line) =>
       track.segments.some((segment) => segment.line_id === line.id),
@@ -50,24 +51,12 @@ export default function LyricsPane() {
           );
           return (
             <li key={line.id}>
-              <Button
-                className="lyric-button flex w-full items-start gap-3 text-left"
-                aria-pressed={selectedLineId === line.id}
-                onClick={() => dispatch({ type: "selectLine", id: line.id })}
-              >
-                <span
-                  aria-hidden="true"
-                  className="pt-0.5 font-mono text-xs text-(--color-text-muted)"
-                >
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <span className="min-w-0 flex-1 wrap-break-word">
-                  <span className="block">{line.text}</span>
-                  <span className="mt-1 block font-mono text-xs text-(--color-text-muted)">
-                    {segment ? formatTime(segment.start_ms, true) : "Untimed"}
-                  </span>
-                </span>
-              </Button>
+              <LyricItem
+                line={line}
+                index={index}
+                segment={segment}
+                selected={selectedLineId === line.id}
+              />
             </li>
           );
         })}
@@ -76,5 +65,59 @@ export default function LyricsPane() {
         <p>No lyrics yet. This track has no lines to select.</p>
       ) : null}
     </section>
+  );
+}
+
+function LyricItem({
+  line,
+  index,
+  segment,
+  selected,
+}: {
+  line: LyricLine;
+  index: number;
+  segment?: Segment;
+  selected: boolean;
+}) {
+  const dispatch = useEditorDispatch();
+  const { saving } = useEditorState();
+  const { ref, isDragging, isDropping } = useDraggable({
+    disabled: saving,
+    id: `lyric-${line.id}`,
+    data: {
+      lineId: line.id,
+      kind: "lyric",
+      text: line.text,
+      placed: !!segment,
+    },
+  });
+  return (
+    <Button
+      disabled={saving}
+      ref={ref}
+      className="lyric-button flex w-full items-start gap-3 text-left"
+      aria-pressed={selected}
+      style={{
+        touchAction: segment ? "auto" : "none",
+        opacity: isDragging ? 0.5 : 1,
+      }}
+      onClick={() => {
+        if (!isDragging && !isDropping)
+          dispatch({ type: "addLine", lineId: line.id });
+      }}
+    >
+      <span
+        aria-hidden="true"
+        className="pt-0.5 font-mono text-xs text-(--color-text-muted)"
+      >
+        {String(index + 1).padStart(2, "0")}
+      </span>
+      <span className="min-w-0 flex-1 wrap-break-word">
+        <span className="block">{line.text}</span>
+        <span className="mt-1 block font-mono text-xs text-(--color-text-muted)">
+          {segment ? formatTime(segment.start_ms, true) : "Untimed"}
+        </span>
+      </span>
+    </Button>
   );
 }
