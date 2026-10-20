@@ -340,7 +340,7 @@ audio {
     scrollbar-gutter: stable;
   }
 
-  .lyric-button[aria-pressed="true"] {
+  .lyric-button[aria-current="true"] {
     border-color: var(--color-primary);
     box-shadow: inset 3px 0 var(--color-primary);
     background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));

@@ -1,4 +1,9 @@
-import { DragDropProvider, DragOverlay, KeyboardSensor, PointerSensor } from "@dnd-kit/react";
+import {
+  DragDropProvider,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+} from "@dnd-kit/react";
 import { Button } from "../components/Button";
 import { useEditorDispatch, useEditorState } from "./EditorContext";
 import KaraokeReadout from "./KaraokeReadout";
@@ -8,8 +13,16 @@ import Timeline from "./Timeline";
 import Toolbar from "./Toolbar";
 
 const sensors = [
-  PointerSensor.configure({ preventActivation: (_event, source) => source.data.placed === true }),
-  KeyboardSensor.configure({ preventActivation: (event, source) => event.key === "Enter" || source.data.placed === true || source.data.kind === "segment" }),
+  PointerSensor.configure({
+    preventActivation: (_event, source) => source.data.placed === true,
+  }),
+  KeyboardSensor.configure({
+    preventActivation: (event, source) =>
+      event.key === "Enter" ||
+      event.key === " " ||
+      source.data.placed === true ||
+      source.data.kind === "segment",
+  }),
 ];
 
 function LoadStatus() {
@@ -43,19 +56,25 @@ function LoadStatus() {
 export function EditorLayout() {
   return (
     <DragDropProvider sensors={sensors}>
-    <main className="editor-shell flex min-h-screen flex-col">
-      <Toolbar />
-      <LoadStatus />
-      <div className="editor-grid min-h-0 flex-1">
-        <LyricsPane />
-        <div className="workspace flex min-h-0 min-w-0 flex-col gap-6 p-5 lg:p-7">
-          <Timeline />
-          <KaraokeReadout />
+      <main className="editor-shell flex min-h-screen flex-col">
+        <Toolbar />
+        <LoadStatus />
+        <div className="editor-grid min-h-0 flex-1">
+          <LyricsPane />
+          <div className="workspace flex min-h-0 min-w-0 flex-col gap-6 p-5 lg:p-7">
+            <Timeline />
+            <KaraokeReadout />
+          </div>
+          <SelectionInspector />
         </div>
-        <SelectionInspector />
-      </div>
-    </main>
-    <DragOverlay dropAnimation={null}>{source => <div className="timeline-drag-overlay">{String(source.data.text ?? "")}</div>}</DragOverlay>
+      </main>
+      <DragOverlay dropAnimation={null}>
+        {(source) => (
+          <div className="timeline-drag-overlay">
+            {String(source.data.text ?? "")}
+          </div>
+        )}
+      </DragOverlay>
     </DragDropProvider>
   );
 }

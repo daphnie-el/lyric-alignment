@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -7,12 +8,13 @@ import {
   type Dispatch,
   type ReactNode,
 } from "react";
-import { ApiError, api } from "../api";
 import { toast } from "sonner";
+import { ApiError, api } from "../api";
 import {
   DEFAULT_DURATION_MS,
   normalizeSegments,
   placeSegment,
+  stampSegment,
   type Segment,
 } from "./timing";
 
@@ -83,6 +85,7 @@ type EditorState = {
   interacting: boolean;
   past: Segment[][];
   future: Segment[][];
+  previousStamp: { lineId: string; seekVersion: number } | null;
 };
 type updateSegmentPayload = {
   lineId: string;
@@ -101,7 +104,13 @@ type EditorAction =
   | { type: "selectLine"; id: string | null }
   | { type: "removeSegment"; lineId: string }
   | { type: "updateSegment"; payload: updateSegmentPayload }
-  | { type: "addLine"; lineId: string }
+  | {
+      type: "stampLine";
+      lineId?: string;
+      startMs: number;
+      seekVersion: number;
+      advance: boolean;
+    }
   | { type: "insertSegment"; lineId: string; startMs: number }
   | { type: "moveSegment"; lineId: string; startMs: number }
   | {
@@ -124,15 +133,87 @@ const initialState: EditorState = {
   interacting: false,
   past: [],
   future: [],
+  previousStamp: null,
 };
 
 const HISTORY_LIMIT = 100;
+
+function commitSegments(
+  state: EditorState,
+  segments: Segment[],
+  selectedLineId: string | null,
+): EditorState {
+  const track = state.track;
+  if (!track) return state;
+  const changed =
+    segments.length !== track.segments.length ||
+    segments.some((segment, index) => {
+      const previous = track.segments[index];
+      return (
+        !previous ||
+        segment.line_id !== previous.line_id ||
+        segment.start_ms !== previous.start_ms ||
+        segment.end_ms !== previous.end_ms
+      );
+    });
+  return {
+    ...state,
+    selectedLineId,
+    timingError: null,
+    track: changed ? { ...track, segments } : track,
+    past: changed
+      ? [...state.past, track.segments].slice(-HISTORY_LIMIT)
+      : state.past,
+    future: changed ? [] : state.future,
+  };
+}
 
 function reducer(state: EditorState, action: EditorAction): EditorState {
   // Guard every editing path, including keyboard and queued interaction events.
   if (state.saving && !["loadSuccess", "saveFailure"].includes(action.type))
     return state;
+  if (
+    state.previousStamp &&
+    action.type !== "stampLine" &&
+    action.type !== "saveFailure" &&
+    !(action.type === "interaction" && !action.active)
+  )
+    state = { ...state, previousStamp: null };
   switch (action.type) {
+    case "stampLine": {
+      const track = state.track;
+      if (!track || state.status !== "ready" || state.interacting) return state;
+      const lineId =
+        action.lineId ??
+        state.selectedLineId ??
+        track.lines.find((line) =>
+          !track.segments.some((segment) => segment.line_id === line.id),
+        )?.id;
+      const index = track.lines.findIndex((line) => line.id === lineId);
+      if (!lineId || index < 0) return state;
+      const previous =
+        action.advance && state.previousStamp?.seekVersion === action.seekVersion
+          ? state.previousStamp.lineId
+          : undefined;
+      const result = stampSegment(
+        track.segments,
+        lineId,
+        action.startMs,
+        track.durationMs,
+        previous,
+      );
+      if (!result.segments)
+        return { ...state, timingError: result.error };
+      const selected = action.advance
+        ? track.lines[index + 1]?.id ?? null
+        : lineId;
+      return {
+        ...commitSegments(state, result.segments, selected),
+        previousStamp: action.advance
+          ? { lineId, seekVersion: action.seekVersion }
+          : null,
+      };
+    }
     case "interaction":
       return { ...state, interacting: action.active };
     case "saveStart":
@@ -237,7 +318,6 @@ function reducer(state: EditorState, action: EditorAction): EditorState {
         future: changed ? [] : state.future,
       };
     }
-    case "addLine":
     case "insertSegment":
     case "moveSegment":
     case "resizeSegment":
@@ -250,19 +330,14 @@ function reducer(state: EditorState, action: EditorAction): EditorState {
       const existing = track.segments.find(
         (segment) => segment.line_id === lineId,
       );
-      if (action.type === "addLine" && existing)
-        return { ...state, selectedLineId: lineId, timingError: null };
       if (action.type === "insertSegment" && existing)
         return {
           ...state,
           timingError: "This lyric is already on the timeline.",
         };
       let candidate: Segment;
-      if (action.type === "addLine" || action.type === "insertSegment") {
-        const start =
-          action.type === "addLine"
-            ? Math.max(0, ...track.segments.map((s) => s.end_ms))
-            : action.startMs;
+      if (action.type === "insertSegment") {
+        const start = action.startMs;
         candidate = {
           line_id: lineId,
           start_ms: start,
@@ -289,28 +364,7 @@ function reducer(state: EditorState, action: EditorAction): EditorState {
       }
       const result = placeSegment(track.segments, candidate, track.durationMs);
       if (result.error) return { ...state, timingError: result.error };
-      const segments = result.segments!;
-      const changed =
-        segments.length !== track.segments.length ||
-        segments.some((segment, index) => {
-          const previous = track.segments[index];
-          return (
-            !previous ||
-            segment.line_id !== previous.line_id ||
-            segment.start_ms !== previous.start_ms ||
-            segment.end_ms !== previous.end_ms
-          );
-        });
-      return {
-        ...state,
-        selectedLineId: lineId,
-        timingError: null,
-        track: changed ? { ...track, segments } : track,
-        past: changed
-          ? [...state.past, track.segments].slice(-HISTORY_LIMIT)
-          : state.past,
-        future: changed ? [] : state.future,
-      };
+      return commitSegments(state, result.segments!, lineId);
     }
   }
 }
@@ -365,42 +419,46 @@ export function EditorProvider({ children }: { children: ReactNode }) {
   }, [unsavedChanges]);
 
   const { saving, track } = state;
-  useEffect(() => {
-    if (!saving || !track) return;
-    const controller = new AbortController();
+
+  const alignTrack = useCallback(async (signal: AbortSignal) => {
+    if (!track) return;
     const body: SaveAlignmentRequest = {
       version: track.version,
       lines: track.lines,
       segments: track.segments,
     };
-    api<SaveAlignmentResponse>("/api/v1/track/alignment", {
-      method: "PUT",
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    })
-      .then((saved) => {
-        if (!controller.signal.aborted) {
-          dispatch({
-            type: "loadSuccess",
-            payload: {
-              ...track,
-              duration_seconds: track.durationMs / 1000,
-              ...saved,
-            },
-          });
-          toast.success("Changes saved successfully");
-        }
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        const message =
-          error instanceof ApiError && error.status === 409
-            ? "Another session saved a newer version. Your changes are still here and have not been saved. Review the latest version in another tab before deciding whether to reload and discard your changes."
-            : "Could not save your changes. Your changes are still here and remain unsaved. Check your connection and try Save again.";
-        dispatch({ type: "saveFailure", error: message });
+    try {
+      const saved = await api<SaveAlignmentResponse>("/api/v1/track/alignment", {
+        method: "PUT",
+        body: JSON.stringify(body),
+        signal,
       });
+      if (signal.aborted) return;
+      dispatch({
+        type: "loadSuccess",
+        payload: {
+          ...track,
+          duration_seconds: track.durationMs / 1000,
+          ...saved,
+        },
+      });
+      toast.success("Changes saved successfully");
+    } catch (error: unknown) {
+      if (signal.aborted) return;
+      const message =
+        error instanceof ApiError && error.status === 409
+          ? "Another session saved a newer version. Your changes are still here and have not been saved. Review the latest version."
+          : "Could not save your changes. Your changes are still here and remain unsaved. Check your connection and try Save again.";
+      dispatch({ type: "saveFailure", error: message });
+    }
+  }, [track]);
+
+  useEffect(() => {
+    if (!saving || !track) return;
+    const controller = new AbortController();
+    void alignTrack(controller.signal);
     return () => controller.abort();
-  }, [saving, track]);
+  }, [saving, track, alignTrack]);
 
   return (
     <DispatchContext.Provider value={dispatch}>

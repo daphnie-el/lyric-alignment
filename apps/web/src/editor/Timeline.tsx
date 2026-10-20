@@ -1,6 +1,5 @@
 import {
   useDragDropMonitor,
-  useDraggable,
   useDroppable,
   type DragMoveEvent,
 } from "@dnd-kit/react";
@@ -8,7 +7,8 @@ import {
   useEffect,
   useRef,
   useState,
-  type PointerEvent as ReactPointerEvent,
+  type MouseEvent,
+  type PointerEvent,
 } from "react";
 import { Button } from "../components/Button";
 import {
@@ -17,6 +17,11 @@ import {
   type Segment,
 } from "./EditorContext";
 import { formatTime } from "./formatTime";
+import LyricBlock from "./LyricBlock";
+import TimelinePlayhead from "./TimelinePlayhead";
+import PlaybackSeek from "./PlaybackSeek";
+import StampControls from "./StampControls";
+import { usePlaybackControls } from "./PlaybackContext";
 import { DEFAULT_DURATION_MS, placeSegment } from "./timing";
 
 export default function Timeline() {
@@ -32,21 +37,59 @@ export default function Timeline() {
     interacting: interactionActive,
   } = useEditorState();
   const dispatch = useEditorDispatch();
+  const { seek } = usePlaybackControls();
   const [scale, setScale] = useState(40); // pixels per second
   const [preview, setPreview] = useState<Segment | null>(null);
   const canvas = useRef<HTMLDivElement | null>(null);
   const grabOffset = useRef(0);
   const interacting = useRef(false);
+  const seekGesture = useRef<{ x: number; y: number } | null>(null);
   const { ref, isDropTarget } = useDroppable({
     id: "timeline",
     disabled: !track || saving,
   });
   function setInteracting(active: boolean) {
+    if (active) seekGesture.current = null;
     interacting.current = active;
     dispatch({ type: "interaction", active });
   }
   const duration = track?.durationMs ?? 0;
   const pixels = (ms: number) => (ms * scale) / 1000;
+
+  function beginSeek(event: PointerEvent<HTMLDivElement>) {
+    seekGesture.current = null;
+    if (
+      event.button !== 0 ||
+      !event.isPrimary ||
+      interacting.current ||
+      (event.target instanceof Element &&
+        event.target.closest(".timeline-block, .timeline-preview"))
+    )
+      return;
+    seekGesture.current = { x: event.clientX, y: event.clientY };
+  }
+
+  function cancelMovedSeek(event: PointerEvent<HTMLDivElement>) {
+    const gesture = seekGesture.current;
+    if (
+      gesture &&
+      Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 4
+    )
+      seekGesture.current = null;
+  }
+
+  function seekFromClick(event: MouseEvent<HTMLDivElement>) {
+    const gesture = seekGesture.current;
+    seekGesture.current = null;
+    if (!track || !gesture || interacting.current || event.defaultPrevented)
+      return;
+    // The canvas rectangle moves with horizontal scrolling, so this offset is
+    // already relative to the entire track rather than the visible viewport.
+    const offset =
+      event.clientX - event.currentTarget.getBoundingClientRect().left;
+    const positionMs = Math.round((offset * 1000) / scale);
+    seek(Math.max(0, Math.min(duration, positionMs)));
+  }
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -170,10 +213,10 @@ export default function Timeline() {
   return (
     <section
       aria-labelledby="timeline-heading"
-      className="flex min-h-80 min-w-0 flex-1 flex-col gap-5"
+      className="flex min-w-0 flex-1 flex-col gap-5"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-end gap-3">
           <h2 id="timeline-heading" className="m-0">
             Timeline
           </h2>
@@ -186,11 +229,7 @@ export default function Timeline() {
                   : "text-sm text-(--color-text-muted)"
               }
             >
-              {saving
-                ? "Saving…"
-                : unsavedChanges
-                  ? "Unsaved changes"
-                  : "All changes saved"}
+              {saving ? "Saving…" : unsavedChanges ? "Unsaved changes" : ""}
             </span>
           ) : null}
         </div>
@@ -218,7 +257,6 @@ export default function Timeline() {
           <Button
             color="primary"
             loading={saving}
-            loadingText="Saving…"
             disabled={!track || !unsavedChanges || saving || interactionActive}
             onClick={() => {
               if (!interacting.current) dispatch({ type: "saveStart" });
@@ -226,11 +264,12 @@ export default function Timeline() {
           >
             Save
           </Button>
-          <span className="text-sm text-(--color-text-muted)">Zoom</span>
+
           <Button
             disabled={scale <= 20}
             aria-label="Zoom out"
             onClick={() => setScale((s) => s / 2)}
+            title="Zoom timeline out"
           >
             −
           </Button>
@@ -238,13 +277,14 @@ export default function Timeline() {
             disabled={scale >= 160}
             aria-label="Zoom in"
             onClick={() => setScale((s) => s * 2)}
+            title="Zoom timeline in"
           >
             +
           </Button>
         </div>
       </div>
       <div
-        className="timeline-scroll"
+        className="timeline-scroll shrink-0"
         aria-label="Scrollable timeline"
         tabIndex={0}
       >
@@ -254,6 +294,12 @@ export default function Timeline() {
             ref(element);
           }}
           data-testid="timeline-track"
+          onPointerDownCapture={beginSeek}
+          onPointerMoveCapture={cancelMovedSeek}
+          onPointerCancelCapture={() => {
+            seekGesture.current = null;
+          }}
+          onClick={seekFromClick}
           className={`timeline-track ${isDropTarget ? "timeline-active" : ""}`}
           style={{ width: Math.max(1, pixels(duration)) }}
         >
@@ -269,11 +315,11 @@ export default function Timeline() {
           </div>
           {!displayed.length ? (
             <p className="timeline-hint">
-              Drag a lyric here or click a lyric to add it.
+              Drag a lyric here, or click an untimed lyric to stamp it at playback time.
             </p>
           ) : null}
           {displayed.map((segment) => (
-            <TimelineBlock
+            <LyricBlock
               key={segment.line_id}
               segment={
                 segment.line_id === preview?.line_id
@@ -304,11 +350,17 @@ export default function Timeline() {
               {formatTime(preview.end_ms, true)}
             </div>
           ) : null}
+          {track ? (
+            <TimelinePlayhead scale={scale} durationMs={duration} />
+          ) : null}
         </div>
       </div>
+      <PlaybackSeek durationMs={duration} />
+      <StampControls />
       <p className="m-0 text-xs">
         {track?.segments.length ?? 0} placed segments · Drag to move; resize
-        either edge. Arrow keys adjust by 100 ms; Shift by 1 second.
+        either edge. Arrow keys adjust blocks by 100 ms; Shift by 1 second.
+        Click the ruler or empty space to seek, or use the playback slider.
       </p>
       {saveError ? (
         <p role="alert" className="input-error">
@@ -326,141 +378,5 @@ export default function Timeline() {
         </p>
       ) : null}
     </section>
-  );
-}
-
-function TimelineBlock({
-  segment,
-  text,
-  selected,
-  scale,
-  onPreview,
-  onInteractionChange,
-}: {
-  segment: Segment;
-  text: string;
-  selected: boolean;
-  scale: number;
-  onPreview: (segment: Segment | null) => void;
-  onInteractionChange: (active: boolean) => void;
-}) {
-  const dispatch = useEditorDispatch();
-  const { saving } = useEditorState();
-  const { ref, handleRef, isDragging, isDropping } = useDraggable({
-    disabled: saving,
-    id: `segment-${segment.line_id}`,
-    data: { kind: "segment", lineId: segment.line_id, text },
-  });
-  const gesture = useRef<{
-    x: number;
-    value: number;
-    next: number;
-    field: "start_ms" | "end_ms";
-  } | null>(null);
-  const resize = (field: "start_ms" | "end_ms", value: number) =>
-    dispatch({ type: "resizeSegment", lineId: segment.line_id, field, value });
-
-  function move(event: ReactPointerEvent<HTMLButtonElement>) {
-    const active = gesture.current;
-    if (!active) return;
-    active.next =
-      active.value + Math.round(((event.clientX - active.x) * 1000) / scale);
-    onPreview({ ...segment, [active.field]: active.next });
-  }
-  function cancel() {
-    gesture.current = null;
-    onPreview(null);
-    onInteractionChange(false);
-  }
-
-  return (
-    <div
-      ref={ref}
-      data-testid={`segment-${segment.line_id}`}
-      className={`timeline-block ${selected ? "timeline-selected" : ""}`}
-      style={{
-        left: (segment.start_ms * scale) / 1000,
-        width: ((segment.end_ms - segment.start_ms) * scale) / 1000,
-        opacity: isDragging ? 0.4 : 1,
-      }}
-    >
-      <button
-        disabled={saving}
-        ref={handleRef}
-        className="timeline-block-body"
-        aria-label={`Move ${text}`}
-        aria-pressed={selected}
-        onClick={() => {
-          if (!isDragging && !isDropping)
-            dispatch({ type: "selectLine", id: segment.line_id });
-        }}
-        onKeyDown={(event) => {
-          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-          event.preventDefault();
-          event.stopPropagation();
-          dispatch({
-            type: "moveSegment",
-            lineId: segment.line_id,
-            startMs:
-              segment.start_ms +
-              (event.key === "ArrowRight" ? 1 : -1) *
-                (event.shiftKey ? 1000 : 100),
-          });
-        }}
-      >
-        <span>{text}</span>
-        <small>
-          {formatTime(segment.start_ms, true)} –{" "}
-          {formatTime(segment.end_ms, true)}
-        </small>
-      </button>
-      {(["start_ms", "end_ms"] as const).map((field) => (
-        <button
-          disabled={saving}
-          key={field}
-          className={`timeline-resize ${field === "start_ms" ? "timeline-left" : "timeline-right"}`}
-          aria-label={`Resize ${field === "start_ms" ? "start" : "end"} of ${text}`}
-          onPointerDown={(event) => {
-            if (event.button !== 0) return;
-            event.stopPropagation();
-            event.currentTarget.setPointerCapture(event.pointerId);
-            gesture.current = {
-              x: event.clientX,
-              value: segment[field],
-              next: segment[field],
-              field,
-            };
-            onInteractionChange(true);
-            dispatch({ type: "selectLine", id: segment.line_id });
-          }}
-          onPointerMove={move}
-          onPointerUp={(event) => {
-            const active = gesture.current;
-            if (!active) return;
-            move(event);
-            resize(active.field, active.next);
-            cancel();
-            event.currentTarget.releasePointerCapture(event.pointerId);
-          }}
-          onPointerCancel={cancel}
-          onLostPointerCapture={cancel}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.preventDefault();
-              cancel();
-            }
-            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-            event.preventDefault();
-            event.stopPropagation();
-            resize(
-              field,
-              segment[field] +
-                (event.key === "ArrowRight" ? 1 : -1) *
-                  (event.shiftKey ? 1000 : 100),
-            );
-          }}
-        />
-      ))}
-    </div>
   );
 }

@@ -1,6 +1,7 @@
 import { Toaster } from "sonner";
 import { EditorProvider } from "./editor/EditorContext";
 import { EditorLayout } from "./editor/EditorLayout";
+import { PlaybackProvider } from "./editor/PlaybackContext";
 
 export default function App() {
   return (
@@ -12,7 +13,9 @@ export default function App() {
         duration={4000}
       />
       <EditorProvider>
-        <EditorLayout />
+        <PlaybackProvider>
+          <EditorLayout />
+        </PlaybackProvider>
       </EditorProvider>
     </>
   );

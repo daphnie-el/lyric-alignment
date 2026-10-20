@@ -3,6 +3,7 @@ import { Button } from "../components/Button";
 import type { LyricLine, Segment } from "./EditorContext";
 import { useEditorDispatch, useEditorState } from "./EditorContext";
 import { formatTime } from "./formatTime";
+import { useStampLine } from "./useStampLine";
 export default function LyricsPane() {
   const { track, selectedLineId, status } = useEditorState();
   const placed =
@@ -80,6 +81,7 @@ function LyricItem({
   selected: boolean;
 }) {
   const dispatch = useEditorDispatch();
+  const stamp = useStampLine();
   const { saving } = useEditorState();
   const { ref, isDragging, isDropping } = useDraggable({
     disabled: saving,
@@ -96,14 +98,15 @@ function LyricItem({
       disabled={saving}
       ref={ref}
       className="lyric-button flex w-full items-start gap-3 text-left"
-      aria-pressed={selected}
+      aria-current={selected}
       style={{
         touchAction: segment ? "auto" : "none",
         opacity: isDragging ? 0.5 : 1,
       }}
       onClick={() => {
-        if (!isDragging && !isDropping)
-          dispatch({ type: "addLine", lineId: line.id });
+        if (isDragging || isDropping) return;
+        if (segment) dispatch({ type: "selectLine", id: line.id });
+        else stamp(line.id, false);
       }}
     >
       <span
@@ -114,7 +117,13 @@ function LyricItem({
       </span>
       <span className="min-w-0 flex-1 wrap-break-word">
         <span className="block">{line.text}</span>
-        <span className="mt-1 block font-mono text-xs text-(--color-text-muted)">
+        <span
+          className={
+            segment
+              ? "mt-1 block font-mono text-xs text-(--color-text-muted)"
+              : "mt-1 inline-block rounded-md border border-(--color-danger) bg-(--color-danger-bg) px-2 py-0.5 text-xs font-medium text-(--color-danger)"
+          }
+        >
           {segment ? formatTime(segment.start_ms, true) : "Untimed"}
         </span>
       </span>

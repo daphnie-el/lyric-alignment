@@ -1,32 +1,39 @@
-import { useRef, useState } from "react";
+import {
+  usePlaybackControls,
+  usePlaybackState,
+} from "../editor/PlaybackContext";
+import { formatTime } from "../editor/formatTime";
+
+function PlaybackPosition() {
+  const { positionMs, playing } = usePlaybackState();
+  return (
+    <div className="flex items-center justify-between gap-3 text-sm text-(--color-text-muted)">
+      <span>{playing ? "Playing" : "Paused"}</span>
+      <span
+        className="font-mono tabular-nums"
+        aria-label="Current playback position"
+      >
+        {formatTime(positionMs, true)}
+      </span>
+    </div>
+  );
+}
 
 const AudioPlayer = ({ src }: { src: string }) => {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [currentTime, setCurrentTime] = useState(0);
+  const { attachAudio } = usePlaybackControls();
 
   return (
     <div className="w-full min-w-0">
       <audio
-        ref={audioRef}
+        ref={attachAudio}
         src={src}
         key={src}
         controls
         className="w-full min-w-0 max-w-none"
         aria-label="Track playback"
-        onTimeUpdate={() => {
-          if (audioRef.current) {
-            setCurrentTime(audioRef.current.currentTime * 1000);
-          }
-        }}
       />
 
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-zinc-400">Current playback position</span>
-
-        <span className="rounded-md bg-violet-500/10 px-3 py-1 font-mono text-sm font-medium tabular-nums text-violet-300">
-          {(currentTime / 1000).toFixed(2)}s
-        </span>
-      </div>
+      <PlaybackPosition />
     </div>
   );
 };

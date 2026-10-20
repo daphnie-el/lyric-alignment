@@ -72,26 +72,34 @@ function TimingFields({
   const dispatch = useEditorDispatch();
   const { saving } = useEditorState();
   const [drafts, setDrafts] = useState({
-    start_ms: String(segment?.start_ms ?? ""),
-    end_ms: String(segment?.end_ms ?? ""),
+    start_ms: segment ? formatTime(segment.start_ms) : "",
+    end_ms: segment ? formatTime(segment.end_ms) : "",
   });
   const [errors, setErrors] = useState<
     Partial<Record<keyof typeof drafts, string>>
   >({});
 
+  function parseTime(draft: string) {
+    const match = /^(\d+):([0-5]\d)$/.exec(draft.trim());
+    if (!match) return undefined;
+    const value = (Number(match[1]) * 60 + Number(match[2])) * 1000;
+    return Number.isSafeInteger(value) ? value : undefined;
+  }
+
   function validate(field: keyof typeof drafts, draft: string) {
     if (!segment || draft === "") return "Both timing endpoints are required.";
-    if (!/^\d+$/.test(draft))
-      return "Enter a nonnegative integer in milliseconds.";
-    return timingError({ ...segment, [field]: Number(draft) }, durationMs);
+    if (draft === formatTime(segment[field])) return undefined;
+    const value = parseTime(draft);
+    if (value === undefined) return "Enter a time as m:ss, for example 1:30.";
+    return timingError({ ...segment, [field]: value }, durationMs);
   }
 
   function commit(field: keyof typeof drafts) {
     const draft = drafts[field];
     const error = validate(field, draft);
     setErrors((current) => ({ ...current, [field]: error }));
-    if (!error) {
-      const value = draft === "" ? undefined : Number(draft);
+    if (!error && segment && draft !== formatTime(segment[field])) {
+      const value = parseTime(draft);
       dispatch({ type: "updateSegment", payload: { lineId, field, value } });
     }
   }
@@ -106,9 +114,8 @@ function TimingFields({
             <dd className="m-0 min-w-0 text-right font-mono">
               <Input
                 aria-label={label}
-                numbersOnly
                 disabled={!segment || saving}
-                placeholder="Milliseconds"
+                placeholder="m:ss"
                 value={drafts[field]}
                 error={errors[field]}
                 onChange={(event) => {
@@ -120,6 +127,9 @@ function TimingFields({
                   }));
                 }}
                 onBlur={() => commit(field)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") event.currentTarget.blur();
+                }}
               />
             </dd>
           </div>
@@ -128,7 +138,7 @@ function TimingFields({
       <dt>Duration</dt>
       <dd className="m-0 min-w-0 text-right font-mono">
         {segment?.start_ms !== undefined && segment.end_ms !== undefined
-          ? formatTime(segment.end_ms - segment.start_ms, true)
+          ? formatTime(segment.end_ms - segment.start_ms)
           : ""}
       </dd>
     </dl>

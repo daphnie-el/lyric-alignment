@@ -3,7 +3,7 @@ import { forwardRef, type ButtonHTMLAttributes, type CSSProperties } from "react
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean;
   loadingText?: string;
-  color?: "neutral" | "primary" | "danger" | "success";
+  color?: "neutral" | "primary" | "outline" | "danger" | "success";
   backgroundColor?: CSSProperties["backgroundColor"];
   textColor?: CSSProperties["color"];
   borderColor?: CSSProperties["borderColor"];

@@ -71,3 +71,42 @@ export function placeSegment(
     ? { error: "These lyrics cannot fit within the track duration." }
     : { segments: [...before, candidate, ...shifted] };
 }
+
+export function stampSegment(
+  segments: Segment[],
+  lineId: string,
+  startMs: number,
+  durationMs: number,
+  previousLineId?: string,
+): TimingResult {
+  if (!Number.isInteger(startMs) || startMs < 0 || startMs >= durationMs)
+    return { error: "Stamp before the end of the track." };
+
+  const existing = segments.find((segment) => segment.line_id === lineId);
+  const duration = existing
+    ? existing.end_ms - existing.start_ms
+    : DEFAULT_DURATION_MS;
+  const candidate: Segment = {
+    line_id: lineId,
+    start_ms: startMs,
+    end_ms: Math.min(durationMs, startMs + duration),
+  };
+  const previous = segments.find(
+    (segment) => segment.line_id === previousLineId && segment.line_id !== lineId,
+  );
+  let next = segments;
+  if (previous) {
+    if (startMs <= previous.start_ms)
+      return { error: "Stamp after the previous line's start time." };
+    // Remove the target before extending the previous line: its old placement
+    // must not cause a ripple or overflow in this atomic edit.
+    const closed = placeSegment(
+      segments.filter((segment) => segment.line_id !== lineId),
+      { ...previous, end_ms: startMs },
+      durationMs,
+    );
+    if (!closed.segments) return closed;
+    next = closed.segments;
+  }
+  return placeSegment(next, candidate, durationMs);
+}
