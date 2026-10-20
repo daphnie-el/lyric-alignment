@@ -25,8 +25,8 @@ export default function StampControls() {
   const stamp = useStampLine();
   const target =
     track?.lines.find((line) => line.id === selectedLineId) ??
-    track?.lines.find((line) =>
-      !track.segments.some((segment) => segment.line_id === line.id),
+    track?.lines.find(
+      (line) => !track.segments.some((segment) => segment.line_id === line.id),
     );
   const disabled = !ready || !target || saving || interacting;
 
@@ -63,15 +63,9 @@ export default function StampControls() {
       >
         Stamp current time
       </Button>
-      <span id="stamp-target" className="min-w-0 wrap-break-word text-sm">
-        {target
-          ? `Next stamp: ${target.text}`
-          : track?.lines.length
-            ? "All lines timed. Select a line to restamp."
-            : "No lyric lines to stamp."}
-      </span>
+
       <span id="stamp-hint" className="text-xs text-(--color-text-muted)">
-        Space stamps and advances when focus is outside controls.
+        Space button stamps and advances when focus is outside controls.
       </span>
     </div>
   );

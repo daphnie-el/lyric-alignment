@@ -15,7 +15,6 @@ export function useStampLine() {
         lineId,
         advance,
         startMs: playback.getCurrentTimeMs(),
-        seekVersion: playback.getSeekVersion(),
       });
     },
     [saving, interacting, dispatch, playback],

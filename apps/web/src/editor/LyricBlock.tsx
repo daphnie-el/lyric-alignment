@@ -19,12 +19,16 @@ const LyricBlock = ({
   onInteractionChange: (active: boolean) => void;
 }) => {
   const dispatch = useEditorDispatch();
-  const { saving } = useEditorState();
-  const { ref, handleRef, isDragging, isDropping } = useDraggable({
+  const { saving, selectedTimelineIds } = useEditorState();
+  const grouped = selectedTimelineIds.length > 1;
+  // Use the block as the activator so the sensor applies its movement threshold.
+  // A dedicated handle activates immediately and consumes ordinary clicks.
+  const { ref, isDragging, isDropping } = useDraggable({
     disabled: saving,
     id: `segment-${segment.line_id}`,
     data: { kind: "segment", lineId: segment.line_id, text },
   });
+  const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const gesture = useRef<{
     x: number;
     value: number;
@@ -49,7 +53,6 @@ const LyricBlock = ({
 
   return (
     <div
-      ref={ref}
       data-testid={`segment-${segment.line_id}`}
       className={`timeline-block ${selected ? "timeline-selected" : ""}`}
       style={{
@@ -59,19 +62,30 @@ const LyricBlock = ({
       }}
     >
       <button
+        ref={ref}
         disabled={saving}
-        ref={handleRef}
         className="timeline-block-body"
         aria-label={`Move ${text}`}
         aria-current={selected}
-        onClick={() => {
-          if (!isDragging && !isDropping)
-            dispatch({ type: "selectLine", id: segment.line_id });
+        onPointerDown={(event) => {
+          pointerStart.current = { x: event.clientX, y: event.clientY };
+        }}
+        onClick={(event) => {
+          const start = pointerStart.current;
+          pointerStart.current = null;
+          const moved = event.detail > 0 && start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 4;
+          if (!moved && !isDragging && !isDropping)
+            dispatch({ type: event.shiftKey ? "toggleTimelineLine" : "selectLine", id: segment.line_id });
         }}
         onKeyDown={(event) => {
           if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
           event.preventDefault();
           event.stopPropagation();
+          const offsetMs = (event.key === "ArrowRight" ? 1 : -1) * (event.shiftKey ? 1000 : 100);
+          if (grouped && selected) {
+            dispatch({ type: "moveSegments", lineIds: selectedTimelineIds, offsetMs });
+            return;
+          }
           dispatch({
             type: "moveSegment",
             lineId: segment.line_id,
@@ -90,7 +104,7 @@ const LyricBlock = ({
       </button>
       {(["start_ms", "end_ms"] as const).map((field) => (
         <button
-          disabled={saving}
+          disabled={saving || grouped}
           key={field}
           className={`timeline-resize ${field === "start_ms" ? "timeline-left" : "timeline-right"}`}
           aria-label={`Resize ${field === "start_ms" ? "start" : "end"} of ${text}`}

@@ -220,6 +220,7 @@ audio {
   }
 
   .button {
+    position: relative;
     padding: var(--space-2) var(--space-3);
     border: 1px solid var(--button-border, var(--color-border));
     border-radius: var(--radius);
@@ -251,11 +252,12 @@ audio {
     gap: 0.5rem;
   }
 
-  .button-labels { display: inline-grid; }
-  .button-labels > span { grid-area: 1 / 1; }
-  .button-label-measure { visibility: hidden; }
+  .button-loading-label { opacity: 0; }
 
   .button-spinner {
+    position: absolute;
+    inset: 0;
+    margin: auto;
     display: inline-block;
     width: 1em;
     height: 1em;

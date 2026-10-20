@@ -72,41 +72,78 @@ export function placeSegment(
     : { segments: [...before, candidate, ...shifted] };
 }
 
+// Sheet order defines neighbors, including when lyrics are stamped out of order.
+// Linear scans keep this O(lines + segments), without changing the inputs.
 export function stampSegment(
-  segments: Segment[],
+  segments: readonly Segment[],
+  orderedLineIds: readonly string[],
   lineId: string,
   startMs: number,
   durationMs: number,
-  previousLineId?: string,
 ): TimingResult {
   if (!Number.isInteger(startMs) || startMs < 0 || startMs >= durationMs)
     return { error: "Stamp before the end of the track." };
+  if (!orderedLineIds.includes(lineId))
+    return { error: "This lyric is not in the lyric sheet." };
 
-  const existing = segments.find((segment) => segment.line_id === lineId);
-  const duration = existing
-    ? existing.end_ms - existing.start_ms
-    : DEFAULT_DURATION_MS;
-  const candidate: Segment = {
-    line_id: lineId,
-    start_ms: startMs,
-    end_ms: Math.min(durationMs, startMs + duration),
-  };
-  const previous = segments.find(
-    (segment) => segment.line_id === previousLineId && segment.line_id !== lineId,
-  );
-  let next = segments;
-  if (previous) {
-    if (startMs <= previous.start_ms)
-      return { error: "Stamp after the previous line's start time." };
-    // Remove the target before extending the previous line: its old placement
-    // must not cause a ripple or overflow in this atomic edit.
-    const closed = placeSegment(
-      segments.filter((segment) => segment.line_id !== lineId),
-      { ...previous, end_ms: startMs },
-      durationMs,
-    );
-    if (!closed.segments) return closed;
-    next = closed.segments;
+  const byId = new Map(segments.map((segment) => [segment.line_id, segment]));
+  const result: Segment[] = [];
+  let targetIndex = -1;
+  for (const id of orderedLineIds) {
+    if (id === lineId) {
+      targetIndex = result.length;
+      result.push({ line_id: lineId, start_ms: startMs, end_ms: durationMs });
+    } else {
+      const segment = byId.get(id);
+      if (segment) result.push(segment);
+    }
   }
-  return placeSegment(next, candidate, durationMs);
+
+  const previous = result[targetIndex - 1];
+  const next = result[targetIndex + 1];
+  if (previous) {
+    if (startMs - previous.start_ms < 2)
+      return { error: "Stamp at least 2 ms after the previous timed lyric's start." };
+    result[targetIndex - 1] = { ...previous, end_ms: startMs - 1 };
+  }
+  if (next) {
+    if (next.start_ms - startMs < 2)
+      return { error: "Stamp at least 2 ms before the next timed lyric's start." };
+    result[targetIndex] = { ...result[targetIndex], end_ms: next.start_ms - 1 };
+  }
+
+  // Manual edits may have changed sheet order. Reject conflicts rather than
+  // moving other starts or repairing saved alignments as a side effect.
+  for (let index = 0; index < result.length; index += 1) {
+    const segment = result[index];
+    const error = timingError(segment, durationMs);
+    if (error) return { error };
+    if (index > 0 && segment.start_ms < result[index - 1].end_ms)
+      return { error: "Stamp times must follow lyric-sheet order without overlaps." };
+  }
+  return { segments: result };
+}
+
+// Move a temporary selection as one rigid group without disturbing other lines.
+export function moveSegments(
+  segments: readonly Segment[],
+  lineIds: readonly string[],
+  offsetMs: number,
+  durationMs: number,
+): TimingResult {
+  if (!Number.isSafeInteger(offsetMs))
+    return { error: "Move lyrics by a whole number of milliseconds." };
+  const selected = new Set(lineIds);
+  if (!selected.size || [...selected].some((id) => !segments.some((s) => s.line_id === id)))
+    return { error: "Select placed lyrics to move." };
+  const result = segments.map((segment) => selected.has(segment.line_id)
+    ? { ...segment, start_ms: segment.start_ms + offsetMs, end_ms: segment.end_ms + offsetMs }
+    : segment).sort((a, b) => a.start_ms - b.start_ms);
+  for (let index = 0; index < result.length; index += 1) {
+    const error = timingError(result[index], durationMs);
+    if (error) return { error };
+    if (index > 0 && result[index].start_ms < result[index - 1].end_ms)
+      return { error: "Selected lyrics would overlap another line. Move them into a free space." };
+  }
+  return { segments: result };
 }

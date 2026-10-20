@@ -18,16 +18,16 @@ import {
 } from "./EditorContext";
 import { formatTime } from "./formatTime";
 import LyricBlock from "./LyricBlock";
-import TimelinePlayhead from "./TimelinePlayhead";
+import { usePlaybackControls } from "./PlaybackContext";
 import PlaybackSeek from "./PlaybackSeek";
 import StampControls from "./StampControls";
-import { usePlaybackControls } from "./PlaybackContext";
-import { DEFAULT_DURATION_MS, placeSegment } from "./timing";
+import TimelinePlayhead from "./TimelinePlayhead";
+import { DEFAULT_DURATION_MS, moveSegments, placeSegment } from "./timing";
 
 export default function Timeline() {
   const {
     track,
-    selectedLineId,
+    selectedTimelineIds,
     timingError,
     past,
     future,
@@ -40,6 +40,7 @@ export default function Timeline() {
   const { seek } = usePlaybackControls();
   const [scale, setScale] = useState(40); // pixels per second
   const [preview, setPreview] = useState<Segment | null>(null);
+  const [dragLineIds, setDragLineIds] = useState<string[]>([]);
   const canvas = useRef<HTMLDivElement | null>(null);
   const grabOffset = useRef(0);
   const interacting = useRef(false);
@@ -88,24 +89,24 @@ export default function Timeline() {
     const offset =
       event.clientX - event.currentTarget.getBoundingClientRect().left;
     const positionMs = Math.round((offset * 1000) / scale);
+    dispatch({ type: "selectLine", id: null });
     seek(Math.max(0, Math.min(duration, positionMs)));
   }
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (
-        event.defaultPrevented ||
-        event.isComposing ||
-        event.altKey ||
-        !(event.ctrlKey || event.metaKey)
-      )
-        return;
+      if (event.defaultPrevented || event.isComposing) return;
       const target = event.target;
       if (
         target instanceof HTMLElement &&
         (target.closest("input, textarea, select") || target.isContentEditable)
       )
         return;
+      if (event.key === "Escape" && !interacting.current) {
+        dispatch({ type: "selectLine", id: null });
+        return;
+      }
+      if (event.altKey || !(event.ctrlKey || event.metaKey)) return;
       const key = event.key.toLowerCase();
       const action =
         key === "z"
@@ -172,6 +173,19 @@ export default function Timeline() {
       const segment = track?.segments.find(
         (s) => s.line_id === source?.data.lineId,
       );
+      const ids =
+        source?.data.kind === "segment" && segment
+          ? selectedTimelineIds.includes(segment.line_id)
+            ? selectedTimelineIds
+            : [segment.line_id]
+          : [];
+      setDragLineIds(ids);
+      if (
+        segment &&
+        source?.data.kind === "segment" &&
+        !selectedTimelineIds.includes(segment.line_id)
+      )
+        dispatch({ type: "selectLine", id: segment.line_id });
       grabOffset.current =
         source?.data.kind === "segment" && segment && canvas.current
           ? event.operation.position.initial.x -
@@ -189,7 +203,18 @@ export default function Timeline() {
       setInteracting(false);
       const next = candidate(event);
       setPreview(null);
+      setDragLineIds([]);
       if (event.canceled || !next) return;
+      if (dragLineIds.length > 1 && track) {
+        const original = track.segments.find((s) => s.line_id === next.line_id);
+        if (original)
+          dispatch({
+            type: "moveSegments",
+            lineIds: dragLineIds,
+            offsetMs: next.start_ms - original.start_ms,
+          });
+        return;
+      }
       dispatch({
         type:
           event.operation.source?.data.kind === "segment"
@@ -201,14 +226,40 @@ export default function Timeline() {
     },
   });
 
+  const groupPreview = preview && dragLineIds.length > 1;
+  const original = track?.segments.find((s) => s.line_id === preview?.line_id);
+  const offsetMs =
+    preview && original ? preview.start_ms - original.start_ms : 0;
+  const previewSegments = preview
+    ? groupPreview
+      ? (track?.segments ?? [])
+          .filter((s) => dragLineIds.includes(s.line_id))
+          .map((s) => ({
+            ...s,
+            start_ms: s.start_ms + offsetMs,
+            end_ms: s.end_ms + offsetMs,
+          }))
+      : [preview]
+    : [];
+  const previewIds = new Set(previewSegments.map((s) => s.line_id));
   const previewResult =
-    preview && track ? placeSegment(track.segments, preview, duration) : null;
+    preview && track
+      ? groupPreview
+        ? moveSegments(track.segments, dragLineIds, offsetMs, duration)
+        : placeSegment(track.segments, preview, duration)
+      : null;
   const displayed = previewResult?.segments ?? track?.segments ?? [];
   const tickStep = scale >= 40 ? 5000 : 10000;
   const ticks = Array.from(
     { length: Math.ceil(duration / tickStep) },
     (_, i) => i * tickStep,
   );
+
+  useEffect(() => {
+    return () => {
+      dispatch({ type: "interaction", active: false });
+    };
+  }, [dispatch]);
 
   return (
     <section
@@ -256,6 +307,7 @@ export default function Timeline() {
           </Button>
           <Button
             color="primary"
+            className=""
             loading={saving}
             disabled={!track || !unsavedChanges || saving || interactionActive}
             onClick={() => {
@@ -315,14 +367,15 @@ export default function Timeline() {
           </div>
           {!displayed.length ? (
             <p className="timeline-hint">
-              Drag a lyric here, or click an untimed lyric to stamp it at playback time.
+              Drag a lyric here, or click an untimed lyric to stamp it at
+              playback time.
             </p>
           ) : null}
           {displayed.map((segment) => (
             <LyricBlock
               key={segment.line_id}
               segment={
-                segment.line_id === preview?.line_id
+                previewIds.has(segment.line_id)
                   ? (track!.segments.find(
                       (s) => s.line_id === segment.line_id,
                     ) ?? segment)
@@ -333,23 +386,24 @@ export default function Timeline() {
                 track?.lines.find((line) => line.id === segment.line_id)
                   ?.text ?? ""
               }
-              selected={selectedLineId === segment.line_id}
+              selected={selectedTimelineIds.includes(segment.line_id)}
               onPreview={setPreview}
               onInteractionChange={setInteracting}
             />
           ))}
-          {preview ? (
+          {previewSegments.map((item) => (
             <div
+              key={item.line_id}
               className={`timeline-preview ${previewResult?.error ? "timeline-invalid" : ""}`}
               style={{
-                left: pixels(preview.start_ms),
-                width: pixels(preview.end_ms - preview.start_ms),
+                left: pixels(item.start_ms),
+                width: pixels(item.end_ms - item.start_ms),
               }}
             >
-              {formatTime(preview.start_ms, true)} –{" "}
-              {formatTime(preview.end_ms, true)}
+              {formatTime(item.start_ms, true)} –{" "}
+              {formatTime(item.end_ms, true)}
             </div>
-          ) : null}
+          ))}
           {track ? (
             <TimelinePlayhead scale={scale} durationMs={duration} />
           ) : null}
@@ -357,11 +411,57 @@ export default function Timeline() {
       </div>
       <PlaybackSeek durationMs={duration} />
       <StampControls />
-      <p className="m-0 text-xs">
-        {track?.segments.length ?? 0} placed segments · Drag to move; resize
-        either edge. Arrow keys adjust blocks by 100 ms; Shift by 1 second.
-        Click the ruler or empty space to seek, or use the playback slider.
-      </p>
+      <div className="border-t border-(--color-border) pt-3 text-xs text-(--color-text-muted)">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span className="rounded-md bg-(--color-elevated) px-2 py-1 font-medium text-(--color-text)">
+            {track?.segments.length ?? 0} placed{" "}
+            {track?.segments.length === 1 ? "segment" : "segments"}
+          </span>
+          <span>Drag to move · Pull an edge to resize</span>
+        </div>
+        <details className="mt-3">
+          <summary className="w-fit cursor-pointer rounded-sm font-medium text-(--color-text) underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-(--color-primary)">
+            Timeline shortcuts
+          </summary>
+          <dl className="mb-0 mt-3 grid gap-x-6 gap-y-4 rounded-lg border border-(--color-border) bg-(--color-surface) p-4 sm:grid-cols-2">
+            <div>
+              <dt className="mb-1 font-medium text-(--color-text)">
+                Fine adjustments
+              </dt>
+              <dd className="m-0 leading-relaxed">
+                <kbd>←</kbd> <kbd>→</kbd> move a focused block by 100 ms. Hold{" "}
+                <kbd>Shift</kbd> for 1 second.
+              </dd>
+            </div>
+            <div>
+              <dt className="mb-1 font-medium text-(--color-text)">
+                Move a group
+              </dt>
+              <dd className="m-0 leading-relaxed">
+                <kbd>Shift</kbd> + click to toggle lines, then drag any selected
+                line. Spacing is preserved; other lines cannot overlap.
+              </dd>
+            </div>
+            <div>
+              <dt className="mb-1 font-medium text-(--color-text)">
+                Clear selection
+              </dt>
+              <dd className="m-0 leading-relaxed">
+                Press <kbd>Esc</kbd> to deselect all lines.
+              </dd>
+            </div>
+            <div>
+              <dt className="mb-1 font-medium text-(--color-text)">
+                Seek playback
+              </dt>
+              <dd className="m-0 leading-relaxed">
+                Click the ruler or empty timeline to seek and clear selection,
+                or use the playback slider.
+              </dd>
+            </div>
+          </dl>
+        </details>
+      </div>
       {saveError ? (
         <p role="alert" className="input-error">
           {saveError}

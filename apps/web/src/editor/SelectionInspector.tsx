@@ -10,7 +10,7 @@ import { formatTime } from "./formatTime";
 import { timingError } from "./timing";
 
 export default function SelectionInspector() {
-  const { track, selectedLineId, saving } = useEditorState();
+  const { track, selectedLineId, selectedTimelineIds, saving } = useEditorState();
   const dispatch = useEditorDispatch();
   const line = track?.lines.find((item) => item.id === selectedLineId);
   const segment = track?.segments.find(
@@ -24,7 +24,13 @@ export default function SelectionInspector() {
     >
       <span className="eyebrow">Inspector</span>
       <h2 id="selection-heading">Selection</h2>
-      {line && track ? (
+      {selectedTimelineIds.length > 1 ? (
+        <div className="my-6 text-sm">
+          <p className="font-medium">{selectedTimelineIds.length} lines selected</p>
+          <p>Drag any selected line to move the group. Arrow keys move by 100 ms; hold Shift for 1 second.</p>
+          <p>Shift + click toggles lines. Press Escape to clear the selection. Select one line to resize or edit its timing.</p>
+        </div>
+      ) : line && track ? (
         <>
           <p className="mt-5 wrap-break-word font-medium text-(--color-text)">
             {line.text}

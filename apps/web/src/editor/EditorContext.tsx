@@ -13,6 +13,7 @@ import { ApiError, api } from "../api";
 import {
   DEFAULT_DURATION_MS,
   normalizeSegments,
+  moveSegments,
   placeSegment,
   stampSegment,
   type Segment,
@@ -77,6 +78,7 @@ type EditorState = {
   track: EditorTrack | null;
   error: string | null;
   selectedLineId: string | null;
+  selectedTimelineIds: string[];
   retryCount: number;
   timingError: string | null;
   saving: boolean;
@@ -85,7 +87,6 @@ type EditorState = {
   interacting: boolean;
   past: Segment[][];
   future: Segment[][];
-  previousStamp: { lineId: string; seekVersion: number } | null;
 };
 type updateSegmentPayload = {
   lineId: string;
@@ -102,13 +103,14 @@ type EditorAction =
   | { type: "loadFailure"; error: string }
   | { type: "retry" }
   | { type: "selectLine"; id: string | null }
+  | { type: "toggleTimelineLine"; id: string }
+  | { type: "moveSegments"; lineIds: string[]; offsetMs: number }
   | { type: "removeSegment"; lineId: string }
   | { type: "updateSegment"; payload: updateSegmentPayload }
   | {
       type: "stampLine";
       lineId?: string;
       startMs: number;
-      seekVersion: number;
       advance: boolean;
     }
   | { type: "insertSegment"; lineId: string; startMs: number }
@@ -125,6 +127,7 @@ const initialState: EditorState = {
   track: null,
   error: null,
   selectedLineId: null,
+  selectedTimelineIds: [],
   retryCount: 0,
   timingError: null,
   saving: false,
@@ -133,7 +136,6 @@ const initialState: EditorState = {
   interacting: false,
   past: [],
   future: [],
-  previousStamp: null,
 };
 
 const HISTORY_LIMIT = 100;
@@ -142,6 +144,10 @@ function commitSegments(
   state: EditorState,
   segments: Segment[],
   selectedLineId: string | null,
+  selectedTimelineIds = selectedLineId &&
+    segments.some((segment) => segment.line_id === selectedLineId)
+    ? [selectedLineId]
+    : [],
 ): EditorState {
   const track = state.track;
   if (!track) return state;
@@ -159,6 +165,7 @@ function commitSegments(
   return {
     ...state,
     selectedLineId,
+    selectedTimelineIds,
     timingError: null,
     track: changed ? { ...track, segments } : track,
     past: changed
@@ -172,13 +179,6 @@ function reducer(state: EditorState, action: EditorAction): EditorState {
   // Guard every editing path, including keyboard and queued interaction events.
   if (state.saving && !["loadSuccess", "saveFailure"].includes(action.type))
     return state;
-  if (
-    state.previousStamp &&
-    action.type !== "stampLine" &&
-    action.type !== "saveFailure" &&
-    !(action.type === "interaction" && !action.active)
-  )
-    state = { ...state, previousStamp: null };
   switch (action.type) {
     case "stampLine": {
       const track = state.track;
@@ -191,28 +191,19 @@ function reducer(state: EditorState, action: EditorAction): EditorState {
         )?.id;
       const index = track.lines.findIndex((line) => line.id === lineId);
       if (!lineId || index < 0) return state;
-      const previous =
-        action.advance && state.previousStamp?.seekVersion === action.seekVersion
-          ? state.previousStamp.lineId
-          : undefined;
       const result = stampSegment(
         track.segments,
+        track.lines.map((line) => line.id),
         lineId,
         action.startMs,
         track.durationMs,
-        previous,
       );
       if (!result.segments)
         return { ...state, timingError: result.error };
       const selected = action.advance
         ? track.lines[index + 1]?.id ?? null
         : lineId;
-      return {
-        ...commitSegments(state, result.segments, selected),
-        previousStamp: action.advance
-          ? { lineId, seekVersion: action.seekVersion }
-          : null,
-      };
+      return commitSegments(state, result.segments, selected);
     }
     case "interaction":
       return { ...state, interacting: action.active };
@@ -232,9 +223,18 @@ function reducer(state: EditorState, action: EditorAction): EditorState {
       const source = action.type === "undo" ? state.past : state.future;
       const segments = source.at(-1);
       if (!segments) return state;
+      const selectedTimelineIds = state.selectedTimelineIds.filter((id) =>
+        segments.some((segment) => segment.line_id === id),
+      );
+      const selectedLineId = state.selectedTimelineIds.length > 1 &&
+        !selectedTimelineIds.includes(state.selectedLineId ?? "")
+        ? selectedTimelineIds.at(-1) ?? null
+        : state.selectedLineId;
       return {
         ...state,
         timingError: null,
+        selectedTimelineIds,
+        selectedLineId,
         track: { ...state.track, segments },
         past:
           action.type === "undo"
@@ -278,6 +278,7 @@ function reducer(state: EditorState, action: EditorAction): EditorState {
         status: "ready",
         error: null,
         selectedLineId: null,
+        selectedTimelineIds: [],
         track: {
           ...track,
           lines: [...track.lines].sort((a, b) => a.index - b.index),
@@ -296,7 +297,35 @@ function reducer(state: EditorState, action: EditorAction): EditorState {
         !state.track?.lines.some((line) => line.id === action.id)
       )
         return state;
-      return { ...state, selectedLineId: action.id };
+      return {
+        ...state,
+        selectedLineId: action.id,
+        selectedTimelineIds: action.id &&
+          state.track?.segments.some((segment) => segment.line_id === action.id)
+          ? [action.id]
+          : [],
+      };
+    case "toggleTimelineLine": {
+      if (!state.track?.segments.some((s) => s.line_id === action.id)) return state;
+      const selectedTimelineIds = state.selectedTimelineIds.includes(action.id)
+        ? state.selectedTimelineIds.filter((id) => id !== action.id)
+        : [...state.selectedTimelineIds, action.id];
+      return {
+        ...state,
+        selectedTimelineIds,
+        selectedLineId: selectedTimelineIds.includes(action.id)
+          ? action.id
+          : selectedTimelineIds.at(-1) ?? null,
+      };
+    }
+    case "moveSegments": {
+      if (!state.track) return state;
+      const result = moveSegments(
+        state.track.segments, action.lineIds, action.offsetMs, state.track.durationMs,
+      );
+      if (result.error) return { ...state, timingError: result.error };
+      return commitSegments(state, result.segments!, state.selectedLineId, state.selectedTimelineIds);
+    }
     case "removeSegment": {
       if (
         !state.track ||
@@ -310,6 +339,7 @@ function reducer(state: EditorState, action: EditorAction): EditorState {
       return {
         ...state,
         selectedLineId: null,
+        selectedTimelineIds: [],
         timingError: null,
         track: changed ? { ...state.track, segments } : state.track,
         past: changed

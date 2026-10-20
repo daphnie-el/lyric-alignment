@@ -16,7 +16,6 @@ type PlaybackSnapshot = {
 function createPlaybackStore() {
   let audio: HTMLAudioElement | null = null;
   let frame: number | null = null;
-  let seekVersion = 0;
   let snapshot: PlaybackSnapshot = {
     positionMs: 0,
     playing: false,
@@ -81,23 +80,17 @@ function createPlaybackStore() {
     }
   }
 
-  function onSeeking() {
-    seekVersion += 1;
-  }
-
   // A stable callback ref owns listeners and animation cleanup, including when
   // React replaces the audio element or unmounts the playback session.
   function attachAudio(element: HTMLAudioElement | null) {
     stopFrame();
     if (audio) {
       events.forEach((event) => audio?.removeEventListener(event, synchronize));
-      audio.removeEventListener("seeking", onSeeking);
       audio.pause();
     }
     audio = element;
     if (audio) {
       events.forEach((event) => audio?.addEventListener(event, synchronize));
-      audio.addEventListener("seeking", onSeeking);
     }
     synchronize();
   }
@@ -105,7 +98,6 @@ function createPlaybackStore() {
   return {
     attachAudio,
     getCurrentTimeMs,
-    getSeekVersion: () => seekVersion,
     getReady: () => snapshot.ready,
     getSnapshot: () => snapshot,
     subscribe(listener: () => void) {
@@ -123,7 +115,6 @@ function createPlaybackStore() {
     seek(positionMs: number) {
       if (!audio || !snapshot.ready || !Number.isFinite(positionMs)) return;
       const durationMs = audio.duration * 1000;
-      seekVersion += 1;
       audio.currentTime = Math.max(0, Math.min(positionMs, durationMs)) / 1000;
       synchronize();
     },

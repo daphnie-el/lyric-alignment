@@ -1,8 +1,26 @@
+import { useMemo } from "react";
 import { useEditorState } from "./EditorContext";
+import { usePlaybackState } from "./PlaybackContext";
 export default function KaraokeReadout() {
-  const { track, selectedLineId } = useEditorState();
-  const index =
-    track?.lines.findIndex((line) => line.id === selectedLineId) ?? -1;
+  const { track } = useEditorState();
+
+  const { positionMs } = usePlaybackState();
+
+  const lines = track?.lines;
+
+  const lineIndexById = useMemo(
+    () => new Map(lines?.map((line, index) => [line.id, index])),
+    [lines],
+  );
+
+  const activeSegment = track?.segments.find(
+    (segment) => positionMs >= segment.start_ms && positionMs < segment.end_ms,
+  );
+
+  const index = activeSegment
+    ? (lineIndexById.get(activeSegment.line_id) ?? -1)
+    : -1;
+
   return (
     <section
       aria-labelledby="preview-heading"
@@ -11,6 +29,9 @@ export default function KaraokeReadout() {
       <h2 id="preview-heading" className="eyebrow">
         Karaoke · selection preview
       </h2>
+      {!track ? (
+        <p className="m-0">Place lyrics on the timeline to preview them here</p>
+      ) : null}
       <div
         aria-live="polite"
         aria-atomic="true"
@@ -29,7 +50,7 @@ export default function KaraokeReadout() {
             </p>
           </>
         ) : (
-          <p className="m-0">Select a line to preview it here.</p>
+          <p className="m-0">♪ ♪ ♪</p>
         )}
       </div>
     </section>
