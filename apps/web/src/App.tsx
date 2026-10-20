@@ -1,4 +1,5 @@
 import { Toaster } from "sonner";
+import ErrorBoundary from "./ErrorBoundary";
 import { EditorProvider } from "./editor/EditorContext";
 import { EditorLayout } from "./editor/EditorLayout";
 import { PlaybackProvider } from "./editor/PlaybackContext";
@@ -14,7 +15,9 @@ export default function App() {
       />
       <EditorProvider>
         <PlaybackProvider>
-          <EditorLayout />
+          <ErrorBoundary>
+            <EditorLayout />
+          </ErrorBoundary>
         </PlaybackProvider>
       </EditorProvider>
     </>
