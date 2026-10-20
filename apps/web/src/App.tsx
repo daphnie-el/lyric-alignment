@@ -11,7 +11,7 @@ export default function App() {
         position="bottom-right"
         theme="system"
         closeButton
-        duration={4000}
+        duration={15000}
       />
       <EditorProvider>
         <PlaybackProvider>

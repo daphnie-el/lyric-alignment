@@ -56,6 +56,7 @@ test('saves latest inspector edit, resets selection and history, retains returne
 });
 
 test('saving all removed placements sends an empty array', async ({ page }) => {
+  await page.clock.install();
   await load(page);
   let body: unknown;
   await page.route('**/api/v1/track/alignment', async route => {
@@ -69,7 +70,10 @@ test('saving all removed placements sends an empty array', async ({ page }) => {
   expect(body).toEqual({ version: 3, lines: track.lines, segments: [] });
   await expect(page.getByText('Changes saved successfully', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Close toast' })).toBeVisible();
-  await expect(page.getByText('Changes saved successfully', { exact: true })).toHaveCount(0, { timeout: 6500 });
+  await page.clock.fastForward(14_000);
+  await expect(page.getByText('Changes saved successfully', { exact: true })).toBeVisible();
+  await page.clock.fastForward(1_500);
+  await expect(page.getByText('Changes saved successfully', { exact: true })).toHaveCount(0);
 });
 
 test('dirty status follows content through undo and redo, ignoring selection, zoom, and rejected edits', async ({ page }) => {

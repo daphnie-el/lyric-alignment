@@ -17,6 +17,99 @@ test.beforeEach(async ({ page }) => {
   await mockAudio(page, track.audio_url, track.duration_seconds);
 });
 
+test('deleting a timed lyric supports undo and redo', async ({ page }) => {
+  await page.route('**/api/v1/track', route => route.fulfill({ json: track }));
+  await page.goto('/');
+  const lyrics = page.getByRole('list', { name: 'Lyric lines' });
+  const line = lyrics.getByRole('button').filter({ hasText: track.lines[1].text });
+  const undo = page.getByRole('button', { name: 'Undo', exact: true });
+  const redo = page.getByRole('button', { name: 'Redo', exact: true });
+  const save = page.getByRole('button', { name: 'Save', exact: true });
+  const segment = page.getByTestId('segment-verse-b');
+
+  await line.click();
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(line).toHaveCount(0);
+  await expect(lyrics.getByRole('button')).toHaveCount(2);
+  await expect(segment).toHaveCount(0);
+  await expect(save).toBeEnabled();
+
+  await undo.click();
+  await expect(line).toBeVisible();
+  await expect(lyrics.getByRole('button').nth(1)).toContainText(track.lines[1].text);
+  await expect(segment).toContainText('0:12.345 – 0:16.789');
+  await expect(save).toBeDisabled();
+  await redo.click();
+  await expect(line).toHaveCount(0);
+  await expect(segment).toHaveCount(0);
+
+  await undo.click();
+  // A new deletion branches history and invalidates the previous redo.
+  await line.click();
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(redo).toBeDisabled();
+  await expect(line).toHaveCount(0);
+});
+
+test('lyric text commits on blur and follows undo, redo, and selection', async ({ page }) => {
+  await page.route('**/api/v1/track', route => route.fulfill({ json: track }));
+  await page.goto('/');
+  const lyrics = page.getByRole('list', { name: 'Lyric lines' });
+  await lyrics.getByRole('button').nth(1).click();
+  const text = page.getByRole('textbox', { name: 'Lyric text', exact: true });
+  const undo = page.getByRole('button', { name: 'Undo', exact: true });
+  const redo = page.getByRole('button', { name: 'Redo', exact: true });
+  const save = page.getByRole('button', { name: 'Save', exact: true });
+  await expect(text).toHaveValue(longLine);
+  await text.fill('An edited lyric');
+  await expect(lyrics.getByRole('button').nth(1)).toContainText(longLine);
+  await expect(save).toBeDisabled();
+  await text.blur();
+  await expect(lyrics.getByRole('button').nth(1)).toContainText('An edited lyric');
+  await expect(save).toBeEnabled();
+  await undo.click();
+  await expect(text).toHaveValue(longLine);
+  await expect(save).toBeDisabled();
+  await redo.click();
+  await expect(text).toHaveValue('An edited lyric');
+  // An unchanged blur must not add another undo step.
+  await text.focus();
+  await text.blur();
+  await undo.click();
+  await expect(text).toHaveValue(longLine);
+  await expect(undo).toBeDisabled();
+  await lyrics.getByRole('button').nth(0).click();
+  await expect(text).toHaveValue(track.lines[0].text);
+  await lyrics.getByRole('button').nth(1).click();
+  await expect(text).toHaveValue(longLine);
+});
+
+test('timing edits and lyric deletion share the same undo history', async ({ page }) => {
+  await page.route('**/api/v1/track', route => route.fulfill({ json: track }));
+  await page.goto('/');
+  const lyrics = page.getByRole('list', { name: 'Lyric lines' });
+  await lyrics.getByRole('button').nth(1).click();
+  const start = page.getByRole('textbox', { name: 'Start', exact: true });
+  await start.fill('0:10');
+  await start.press('Enter');
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  const undo = page.getByRole('button', { name: 'Undo', exact: true });
+  const redo = page.getByRole('button', { name: 'Redo', exact: true });
+  const segment = page.getByTestId('segment-verse-b');
+  await undo.click();
+  await expect(segment).toContainText('0:10.000 – 0:16.789');
+  await undo.click();
+  await expect(segment).toContainText('0:12.345 – 0:16.789');
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+  await redo.click();
+  await expect(segment).toContainText('0:10.000 – 0:16.789');
+  await lyrics.getByRole('button').nth(1).click();
+  await redo.click();
+  await expect(segment).toHaveCount(0);
+  await expect(lyrics.getByRole('button')).toHaveCount(2);
+  await expect(page.getByRole('complementary', { name: 'Selection' })).toContainText('Select a lyric line');
+});
+
 for (const viewport of [{ width: 1440, height: 900 }, { width: 375, height: 812 }]) {
   test(`selection shows timing while karaoke follows playback at ${viewport.width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
@@ -35,7 +128,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 375, height: 812 
     await line.focus();
     await page.keyboard.press('Enter');
     await expect(line).toHaveAttribute('aria-current', 'true');
-    await expect(inspector.getByText(longLine, { exact: true })).toBeVisible();
+    await expect(inspector.getByRole('textbox', { name: 'Lyric text', exact: true })).toHaveValue(longLine);
     await expect(inspector.getByRole('textbox', { name: 'Start', exact: true })).toHaveValue('0:12');
     await expect(inspector.getByRole('textbox', { name: 'End', exact: true })).toHaveValue('0:16');
     await expect(inspector.getByText('0:04', { exact: true })).toBeVisible();

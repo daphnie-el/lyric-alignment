@@ -65,7 +65,8 @@ export default function StampControls() {
       </Button>
 
       <span id="stamp-hint" className="text-xs text-(--color-text-muted)">
-        Space button stamps and advances when focus is outside controls.
+        Press <kbd>Space</kbd> to time the current lyric and move to the next
+        line.
       </span>
     </div>
   );

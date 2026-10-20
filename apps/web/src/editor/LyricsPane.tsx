@@ -1,4 +1,5 @@
 import { useDraggable } from "@dnd-kit/react";
+import { useRef, useState } from "react";
 import { Button } from "../components/Button";
 import type { LyricLine, Segment } from "./EditorContext";
 import { useEditorDispatch, useEditorState } from "./EditorContext";
@@ -68,7 +69,13 @@ function LyricItem({
 }
 
 export default function LyricsPane() {
-  const { track, selectedLineId, status } = useEditorState();
+  const { track, selectedLineId, status, saving, interacting } =
+    useEditorState();
+  const dispatch = useEditorDispatch();
+  const [draft, setDraft] = useState("");
+  const lyricSheetRef = useRef<HTMLTextAreaElement>(null);
+  const editingDisabled = status !== "ready" || !track || saving || interacting;
+  const text = draft.trim();
   const placed =
     track?.lines.filter((line) =>
       track.segments.some((segment) => segment.line_id === line.id),
@@ -96,15 +103,30 @@ export default function LyricsPane() {
         </label>
         <textarea
           id="lyric-sheet"
-          disabled
-          placeholder="Paste full lyrics…"
+          ref={lyricSheetRef}
+          disabled={editingDisabled}
+          placeholder="Enter a lyric line…"
+          value={draft}
+          onChange={(event) => setDraft(event.currentTarget.value)}
           rows={3}
         />
         <div className="grid grid-cols-2 gap-2">
           <Button disabled>Add all lines</Button>
-          <Button disabled>+ Add line</Button>
+          <Button
+            disabled={editingDisabled || !text}
+            onClick={() => {
+              if (editingDisabled || !text) return;
+              dispatch({ type: "addLine", id: crypto.randomUUID(), text });
+              setDraft("");
+              lyricSheetRef.current?.focus();
+            }}
+          >
+            + Add line
+          </Button>
         </div>
-        <p className="m-0 text-xs">Lyric editing is coming later.</p>
+        <p className="m-0 text-xs">
+          Enter text and click Add line. Edit added lines in the inspector.
+        </p>
       </div>
       <ol
         aria-label="Lyric lines"

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import {
@@ -10,7 +10,10 @@ import { formatTime } from "./formatTime";
 import { timingError } from "./timing";
 
 export default function SelectionInspector() {
-  const { track, selectedLineId, selectedTimelineIds, saving } = useEditorState();
+  const lyricInputId = useId();
+  const lyricHintId = useId();
+  const { track, selectedLineId, selectedTimelineIds, saving } =
+    useEditorState();
   const dispatch = useEditorDispatch();
   const line = track?.lines.find((item) => item.id === selectedLineId);
   const segment = track?.segments.find(
@@ -26,15 +29,64 @@ export default function SelectionInspector() {
       <h2 id="selection-heading">Selection</h2>
       {selectedTimelineIds.length > 1 ? (
         <div className="my-6 text-sm">
-          <p className="font-medium">{selectedTimelineIds.length} lines selected</p>
-          <p>Drag any selected line to move the group. Arrow keys move by 100 ms; hold Shift for 1 second.</p>
-          <p>Shift + click toggles lines. Press Escape to clear the selection. Select one line to resize or edit its timing.</p>
+          <p className="font-medium">
+            {selectedTimelineIds.length} lines selected
+          </p>
+          <p>
+            Drag any selected line to move the group. Arrow keys move by 100 ms;
+            hold Shift for 1 second.
+          </p>
+          <p>
+            Shift + click toggles lines. Press Escape to clear the selection.
+            Select one line to resize or edit its timing.
+          </p>
         </div>
       ) : line && track ? (
         <>
-          <p className="mt-5 wrap-break-word font-medium text-(--color-text)">
-            {line.text}
-          </p>
+          <div className="mt-5">
+            <label
+              htmlFor={lyricInputId}
+              className="mb-2 block text-sm font-medium text-(--color-text)"
+            >
+              Lyric text
+            </label>
+            <div className="relative">
+              <textarea
+                key={`${line.id}:${line.text}`}
+                id={lyricInputId}
+                aria-describedby={lyricHintId}
+                className="input lyric-text-input"
+                rows={2}
+                disabled={saving}
+                defaultValue={line.text}
+                onBlur={(event) => {
+                  const text = event.currentTarget.value;
+                  if (text !== line.text) {
+                    dispatch({ type: "editLine", lineId: line.id, text });
+                  }
+                }}
+              />
+              <svg
+                aria-hidden="true"
+                className="pointer-events-none absolute right-3 top-3 size-4 text-(--color-text-muted)"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m16 4 4 4M4 20l4-1L20 7a2.83 2.83 0 0 0-4-4L4 15l-1 6Z" />
+              </svg>
+            </div>
+            <p
+              id={lyricHintId}
+              className="mb-0 mt-2 italic text-[10px] text-(--color-text-muted)"
+            >
+              Edit your lyric, then click outside or press <kbd>Tab</kbd> to
+              apply.
+            </p>
+          </div>
           <TimingFields
             key={`${line.id}:${segment?.start_ms}:${segment?.end_ms}`}
             lineId={line.id}
@@ -48,20 +100,24 @@ export default function SelectionInspector() {
           >
             Clear selection
           </Button>
+          <div className="mt-6 flex flex-col gap-2 border-t border-(--color-border) pt-5">
+            <Button disabled>Merge with next</Button>
+            <Button disabled>Split</Button>
+            <Button
+              color="danger"
+              disabled={saving}
+              onClick={() => dispatch({ type: "deleteLine", lineId: line.id })}
+            >
+              Delete
+            </Button>
+            <p className="mt-1 text-xs">
+              Drag timeline blocks or edit their timing here.
+            </p>
+          </div>
         </>
       ) : (
         <p className="mt-5 text-sm">Select a lyric line to view its timing.</p>
       )}
-      <div className="mt-6 flex flex-col gap-2 border-t border-(--color-border) pt-5">
-        <Button disabled>Merge with next</Button>
-        <Button disabled>Split</Button>
-        <Button color="danger" disabled>
-          Delete
-        </Button>
-        <p className="mt-1 text-xs">
-          Drag timeline blocks or edit their timing here.
-        </p>
-      </div>
     </aside>
   );
 }
