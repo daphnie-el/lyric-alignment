@@ -1,8 +1,8 @@
 import { useDraggable } from "@dnd-kit/react";
 import { useRef, type PointerEvent as ReactPointerEvent } from "react";
+import { Segment } from "../utils/types";
 import { useEditorDispatch, useEditorState } from "./EditorContext";
 import { formatTime } from "./formatTime";
-import { Segment } from "./timing";
 const LyricBlock = ({
   segment,
   text,
@@ -19,7 +19,7 @@ const LyricBlock = ({
   onInteractionChange: (active: boolean) => void;
 }) => {
   const dispatch = useEditorDispatch();
-  const { saving, selectedTimelineIds } = useEditorState();
+  const { saving, interacting, selectedTimelineIds } = useEditorState();
   const grouped = selectedTimelineIds.length > 1;
   // Use the block as the activator so the sensor applies its movement threshold.
   // A dedicated handle activates immediately and consumes ordinary clicks.
@@ -73,17 +73,49 @@ const LyricBlock = ({
         onClick={(event) => {
           const start = pointerStart.current;
           pointerStart.current = null;
-          const moved = event.detail > 0 && start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 4;
+          const moved =
+            event.detail > 0 &&
+            start &&
+            Math.hypot(event.clientX - start.x, event.clientY - start.y) > 4;
           if (!moved && !isDragging && !isDropping)
-            dispatch({ type: event.shiftKey ? "toggleTimelineLine" : "selectLine", id: segment.line_id });
+            dispatch({
+              type: event.shiftKey ? "toggleTimelineLine" : "selectLine",
+              id: segment.line_id,
+            });
         }}
         onKeyDown={(event) => {
+          if (
+            (event.key === "Delete" || event.key === "Backspace") &&
+            selected
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (
+              !saving &&
+              !interacting &&
+              !isDragging &&
+              !isDropping &&
+              !gesture.current &&
+              !event.nativeEvent.isComposing
+            )
+              dispatch({
+                type: "removeSegments",
+                lineIds: selectedTimelineIds,
+              });
+            return;
+          }
           if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
           event.preventDefault();
           event.stopPropagation();
-          const offsetMs = (event.key === "ArrowRight" ? 1 : -1) * (event.shiftKey ? 1000 : 100);
+          const offsetMs =
+            (event.key === "ArrowRight" ? 1 : -1) *
+            (event.shiftKey ? 1000 : 100);
           if (grouped && selected) {
-            dispatch({ type: "moveSegments", lineIds: selectedTimelineIds, offsetMs });
+            dispatch({
+              type: "moveSegments",
+              lineIds: selectedTimelineIds,
+              offsetMs,
+            });
             return;
           }
           dispatch({

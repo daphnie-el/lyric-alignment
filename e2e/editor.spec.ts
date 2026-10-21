@@ -150,7 +150,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 375, height: 812 
     await expect(inspector.getByRole('textbox', { name: 'End', exact: true })).toHaveValue('4:07');
     await expect(inspector.getByText('3:47', { exact: true })).toBeVisible();
     await expect(preview.getByText('An untimed ending', { exact: true })).toBeVisible();
-    await inspector.getByRole('button', { name: 'Clear selection' }).click();
+    await inspector.getByRole('button', { name: 'Remove Segment', exact: true }).click();
     await expect(preview.getByText('♪ ♪ ♪', { exact: true })).toBeVisible();
     await expect(inspector.getByText('Select a lyric line to view its timing.')).toBeVisible();
     await expect(page.getByTestId('segment-verse-c')).toHaveCount(0);

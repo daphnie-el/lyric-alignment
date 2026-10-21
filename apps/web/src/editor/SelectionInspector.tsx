@@ -1,11 +1,8 @@
 import { useId, useState } from "react";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
-import {
-  useEditorDispatch,
-  useEditorState,
-  type Segment,
-} from "./EditorContext";
+import { Segment } from "../utils/types";
+import { useEditorDispatch, useEditorState } from "./EditorContext";
 import { formatTime } from "./formatTime";
 import { timingError } from "./timing";
 
@@ -98,7 +95,7 @@ export default function SelectionInspector() {
             className="w-full"
             onClick={() => dispatch({ type: "removeSegment", lineId: line.id })}
           >
-            Clear selection
+            Remove Segment
           </Button>
           <div className="mt-6 flex flex-col gap-2 border-t border-(--color-border) pt-5">
             <Button disabled>Merge with next</Button>

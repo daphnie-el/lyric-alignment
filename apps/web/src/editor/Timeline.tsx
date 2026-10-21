@@ -11,18 +11,15 @@ import {
   type PointerEvent,
 } from "react";
 import { Button } from "../components/Button";
-import {
-  useEditorDispatch,
-  useEditorState,
-  type Segment,
-} from "./EditorContext";
+import { DEFAULT_DURATION_MS, Segment } from "../utils/types";
+import { useEditorDispatch, useEditorState } from "./EditorContext";
 import { formatTime } from "./formatTime";
 import LyricBlock from "./LyricBlock";
 import { usePlaybackControls } from "./PlaybackContext";
 import PlaybackSeek from "./PlaybackSeek";
 import StampControls from "./StampControls";
 import TimelinePlayhead from "./TimelinePlayhead";
-import { DEFAULT_DURATION_MS, moveSegments, placeSegment } from "./timing";
+import { moveSegments, placeSegment } from "./timing";
 
 export default function Timeline() {
   const {
@@ -314,7 +311,7 @@ export default function Timeline() {
               if (!interacting.current) dispatch({ type: "saveStart" });
             }}
           >
-            Save
+            Save alignment
           </Button>
 
           <Button
@@ -367,8 +364,8 @@ export default function Timeline() {
           </div>
           {!displayed.length ? (
             <p className="timeline-hint">
-              Drag a lyric here, or click an untimed lyric to stamp it at
-              playback time.
+              Drag a lyric here, or select a lyric and use Stamp current time to
+              place it at playback time.
             </p>
           ) : null}
           {displayed.map((segment) => (

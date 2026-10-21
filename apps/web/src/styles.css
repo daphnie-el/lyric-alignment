@@ -6,6 +6,7 @@
   color-scheme: light;
 
   --color-primary: #7C3AED;
+  --color-primary-button: #7C3AED;
   --color-background: #F8FAFC;
   --color-surface: #FFFFFF;
   --color-elevated: #F1F5F9;
@@ -307,10 +308,10 @@ audio {
   }
 
   .button[data-color="primary"] {
-    --button-background: var(--color-primary);
+    --button-background: var(--color-primary-button);
     --button-text: var(--color-on-primary);
-    --button-border: var(--color-primary);
-    --button-hover-background: color-mix(in srgb, var(--color-primary) 85%, var(--color-text));
+    --button-border: var(--color-primary-button);
+    --button-hover-background: color-mix(in srgb, var(--color-primary-button) 85%, #000000);
   }
 
   .button[data-color="danger"] {

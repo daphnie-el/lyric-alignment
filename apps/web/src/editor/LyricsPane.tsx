@@ -1,10 +1,9 @@
 import { useDraggable } from "@dnd-kit/react";
 import { useRef, useState } from "react";
 import { Button } from "../components/Button";
-import type { LyricLine, Segment } from "./EditorContext";
+import type { LyricLine, Segment } from "../utils/types";
 import { useEditorDispatch, useEditorState } from "./EditorContext";
 import { formatTime } from "./formatTime";
-import { useStampLine } from "./useStampLine";
 
 function LyricItem({
   line,
@@ -18,7 +17,6 @@ function LyricItem({
   selected: boolean;
 }) {
   const dispatch = useEditorDispatch();
-  const stamp = useStampLine();
   const { saving } = useEditorState();
   const { ref, isDragging, isDropping } = useDraggable({
     disabled: saving,
@@ -42,8 +40,7 @@ function LyricItem({
       }}
       onClick={() => {
         if (isDragging || isDropping) return;
-        if (segment) dispatch({ type: "selectLine", id: line.id });
-        else stamp(line.id, false);
+        dispatch({ type: "selectLine", id: line.id });
       }}
     >
       <span
@@ -105,13 +102,28 @@ export default function LyricsPane() {
           id="lyric-sheet"
           ref={lyricSheetRef}
           disabled={editingDisabled}
-          placeholder="Enter a lyric line…"
+          placeholder="Enter lyrics, one line per lyric…"
           value={draft}
           onChange={(event) => setDraft(event.currentTarget.value)}
           rows={3}
         />
         <div className="grid grid-cols-2 gap-2">
-          <Button disabled>Add all lines</Button>
+          <Button
+            disabled={editingDisabled || !text}
+            onClick={() => {
+              if (editingDisabled || !text) return;
+              const lines = draft
+                .split(/\r\n|[\r\n]/)
+                .map((line) => line.trim())
+                .filter(Boolean)
+                .map((text) => ({ id: crypto.randomUUID(), text }));
+              dispatch({ type: "addLines", lines });
+              setDraft("");
+              lyricSheetRef.current?.focus();
+            }}
+          >
+            Add all lines
+          </Button>
           <Button
             disabled={editingDisabled || !text}
             onClick={() => {
@@ -125,7 +137,8 @@ export default function LyricsPane() {
           </Button>
         </div>
         <p className="m-0 text-xs">
-          Enter text and click Add line. Edit added lines in the inspector.
+          Add all lines creates one lyric per line and skips blank lines. Add
+          line keeps the text as one lyric. Edit added lines in the inspector.
         </p>
       </div>
       <ol

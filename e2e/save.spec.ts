@@ -64,7 +64,7 @@ test('saving all removed placements sends an empty array', async ({ page }) => {
     await route.fulfill({ json: { version: 4, lines: track.lines, alignment: { segments: [] } } });
   });
   await move(page).click();
-  await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
+  await page.getByRole('button', { name: 'Remove Segment', exact: true }).click();
   await save(page).click();
   await expect(save(page)).toBeDisabled();
   expect(body).toEqual({ version: 3, lines: track.lines, segments: [] });
@@ -157,7 +157,7 @@ test('in-flight save blocks edits and duplicate submissions, keeps zoom and unlo
   await expect(move(page)).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Resize end of Lyric a' })).toBeDisabled();
   await expect(page.getByRole('textbox', { name: 'Start', exact: true })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Clear selection', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Remove Segment', exact: true })).toBeDisabled();
   await expect(page.getByRole('list', { name: 'Lyric lines' }).getByRole('button').first()).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
   await page.keyboard.press('Control+z');

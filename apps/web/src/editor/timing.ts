@@ -1,8 +1,4 @@
-export type Segment = { line_id: string; start_ms: number; end_ms: number };
-export const DEFAULT_DURATION_MS = 3000;
-export type TimingResult =
-  | { segments: Segment[]; error?: never }
-  | { error: string; segments?: never };
+import { Segment, TimingResult } from "../utils/types";
 
 export function timingError(
   segment: Segment,
@@ -103,12 +99,16 @@ export function stampSegment(
   const next = result[targetIndex + 1];
   if (previous) {
     if (startMs - previous.start_ms < 2)
-      return { error: "Stamp at least 2 ms after the previous timed lyric's start." };
+      return {
+        error: "Stamp at least 2 ms after the previous timed lyric's start.",
+      };
     result[targetIndex - 1] = { ...previous, end_ms: startMs - 1 };
   }
   if (next) {
     if (next.start_ms - startMs < 2)
-      return { error: "Stamp at least 2 ms before the next timed lyric's start." };
+      return {
+        error: "Stamp at least 2 ms before the next timed lyric's start.",
+      };
     result[targetIndex] = { ...result[targetIndex], end_ms: next.start_ms - 1 };
   }
 
@@ -119,7 +119,9 @@ export function stampSegment(
     const error = timingError(segment, durationMs);
     if (error) return { error };
     if (index > 0 && segment.start_ms < result[index - 1].end_ms)
-      return { error: "Stamp times must follow lyric-sheet order without overlaps." };
+      return {
+        error: "Stamp times must follow lyric-sheet order without overlaps.",
+      };
   }
   return { segments: result };
 }
@@ -134,16 +136,30 @@ export function moveSegments(
   if (!Number.isSafeInteger(offsetMs))
     return { error: "Move lyrics by a whole number of milliseconds." };
   const selected = new Set(lineIds);
-  if (!selected.size || [...selected].some((id) => !segments.some((s) => s.line_id === id)))
+  if (
+    !selected.size ||
+    [...selected].some((id) => !segments.some((s) => s.line_id === id))
+  )
     return { error: "Select placed lyrics to move." };
-  const result = segments.map((segment) => selected.has(segment.line_id)
-    ? { ...segment, start_ms: segment.start_ms + offsetMs, end_ms: segment.end_ms + offsetMs }
-    : segment).sort((a, b) => a.start_ms - b.start_ms);
+  const result = segments
+    .map((segment) =>
+      selected.has(segment.line_id)
+        ? {
+            ...segment,
+            start_ms: segment.start_ms + offsetMs,
+            end_ms: segment.end_ms + offsetMs,
+          }
+        : segment,
+    )
+    .sort((a, b) => a.start_ms - b.start_ms);
   for (let index = 0; index < result.length; index += 1) {
     const error = timingError(result[index], durationMs);
     if (error) return { error };
     if (index > 0 && result[index].start_ms < result[index - 1].end_ms)
-      return { error: "Selected lyrics would overlap another line. Move them into a free space." };
+      return {
+        error:
+          "Selected lyrics would overlap another line. Move them into a free space.",
+      };
   }
   return { segments: result };
 }

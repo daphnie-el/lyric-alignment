@@ -12,44 +12,19 @@ import { toast } from "sonner";
 import { ApiError, api } from "../api";
 import {
   DEFAULT_DURATION_MS,
+  EditorTrack,
+  LyricLine,
+  SaveAlignmentRequest,
+  SaveAlignmentResponse,
+  Segment,
+  TrackPayload,
+} from "../utils/types";
+import {
   moveSegments,
   normalizeSegments,
   placeSegment,
   stampSegment,
-  type Segment,
 } from "./timing";
-
-export type LyricLine = { id: string; index: number; text: string };
-export type { Segment } from "./timing";
-
-export type TrackPayload = {
-  id: string;
-  title: string;
-  artist: string;
-  duration_seconds: number;
-  audio_url: string;
-  lines: LyricLine[];
-  version: number;
-  alignment: { segments: Segment[] } | null;
-};
-
-export type EditorTrack = Omit<
-  TrackPayload,
-  "duration_seconds" | "alignment"
-> & {
-  durationMs: number;
-  segments: Segment[];
-};
-
-export type SaveAlignmentRequest = {
-  version: number;
-  lines: LyricLine[];
-  segments: Segment[];
-};
-export type SaveAlignmentResponse = Pick<
-  TrackPayload,
-  "version" | "lines" | "alignment"
->;
 
 // Compare persisted values, independent of server array order or history depth.
 function contentSnapshot(lines: LyricLine[], segments: Segment[]): string {
@@ -112,7 +87,9 @@ type EditorAction =
   | { type: "toggleTimelineLine"; id: string }
   | { type: "moveSegments"; lineIds: string[]; offsetMs: number }
   | { type: "removeSegment"; lineId: string }
+  | { type: "removeSegments"; lineIds: string[] }
   | { type: "addLine"; id: string; text: string }
+  | { type: "addLines"; lines: { id: string; text: string }[] }
   | { type: "updateSegment"; payload: updateSegmentPayload }
   | {
       type: "stampLine";
@@ -138,7 +115,7 @@ type EditorAction =
       lineId: string;
     };
 
-const initialState: EditorState = {
+export const initialState: EditorState = {
   status: "loading",
   track: null,
   error: null,
@@ -191,7 +168,7 @@ function commitSegments(
   };
 }
 
-function reducer(state: EditorState, action: EditorAction): EditorState {
+export function reducer(state: EditorState, action: EditorAction): EditorState {
   // Guard every editing path, including keyboard and queued interaction events.
   if (state.saving && !["loadSuccess", "saveFailure"].includes(action.type))
     return state;
@@ -359,6 +336,16 @@ function reducer(state: EditorState, action: EditorAction): EditorState {
         state.selectedTimelineIds,
       );
     }
+    case "removeSegments": {
+      if (!state.track || state.interacting || !action.lineIds.length)
+        return state;
+      const ids = new Set(action.lineIds);
+      const segments = state.track.segments.filter(
+        (segment) => !ids.has(segment.line_id),
+      );
+      if (segments.length === state.track.segments.length) return state;
+      return commitSegments(state, segments, null, []);
+    }
     case "removeSegment": {
       if (
         !state.track ||
@@ -429,29 +416,37 @@ function reducer(state: EditorState, action: EditorAction): EditorState {
       if (result.error) return { ...state, timingError: result.error };
       return commitSegments(state, result.segments!, lineId);
     }
-    case "addLine": {
+    case "addLine":
+    case "addLines": {
       const track = state.track;
-      const text = action.text.trim();
-      if (
-        !track ||
-        state.status !== "ready" ||
-        state.interacting ||
-        !text ||
-        track.lines.some((line) => line.id === action.id)
-      )
-        return state;
+      if (!track || state.status !== "ready" || state.interacting) return state;
+      const additions = (
+        action.type === "addLine" ? [action] : action.lines
+      ).map(({ id, text }) => ({ id, text: text.trim() }));
+      if (!additions.length) return state;
+      const ids = new Set(track.lines.map((line) => line.id));
+      for (const line of additions) {
+        if (!line.text || !line.id.trim() || ids.has(line.id)) return state;
+        ids.add(line.id);
+      }
       const index = track.lines.reduce(
         (next, line) => Math.max(next, line.index + 1),
         0,
       );
       return {
         ...state,
-        selectedLineId: action.id,
+        selectedLineId: additions[0].id,
         selectedTimelineIds: [],
         timingError: null,
         track: {
           ...track,
-          lines: [...track.lines, { id: action.id, index, text }],
+          lines: [
+            ...track.lines,
+            ...additions.map((line, offset) => ({
+              ...line,
+              index: index + offset,
+            })),
+          ],
         },
         past: [...state.past, historyEntry(track)].slice(-HISTORY_LIMIT),
         future: [],
