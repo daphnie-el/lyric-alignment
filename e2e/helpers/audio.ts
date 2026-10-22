@@ -37,6 +37,6 @@ export async function mockAudio(page: Page, url: string, durationSeconds: number
 
 export async function waitForAudio(page: Page) {
   await expect
-    .poll(() => page.locator("audio").evaluate((audio) => audio.readyState))
+    .poll(() => page.locator("audio").evaluate((audio: HTMLAudioElement) => audio.readyState))
     .toBeGreaterThanOrEqual(2);
 }

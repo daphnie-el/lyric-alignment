@@ -10,6 +10,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { ApiError, api } from "../api";
+import { downloadTrackLrc } from "../utils/helpers";
 import {
   DEFAULT_DURATION_MS,
   EditorTrack,
@@ -63,6 +64,7 @@ type EditorState = {
   retryCount: number;
   timingError: string | null;
   saving: boolean;
+  exportAfterSave: boolean;
   saveError: string | null;
   savedContent: string | null;
   interacting: boolean;
@@ -77,7 +79,7 @@ type updateSegmentPayload = {
 
 type EditorAction =
   | { type: "undo" | "redo" }
-  | { type: "saveStart" }
+  | { type: "saveStart"; exportAfterSave?: boolean }
   | { type: "saveFailure"; error: string }
   | { type: "interaction"; active: boolean }
   | { type: "loadSuccess"; payload: TrackPayload }
@@ -124,6 +126,7 @@ export const initialState: EditorState = {
   retryCount: 0,
   timingError: null,
   saving: false,
+  exportAfterSave: false,
   saveError: null,
   savedContent: null,
   interacting: false,
@@ -209,9 +212,14 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
         !hasUnsavedChanges(state)
       )
         return state;
-      return { ...state, saving: true, saveError: null };
+      return {
+        ...state,
+        saving: true,
+        saveError: null,
+        exportAfterSave: action.exportAfterSave ?? false,
+      };
     case "saveFailure":
-      return { ...state, saving: false, saveError: action.error };
+      return { ...state, saving: false, exportAfterSave: false, saveError: action.error };
     case "undo":
     case "redo": {
       if (!state.track) return state;
@@ -261,6 +269,7 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
           error: `Invalid alignment: ${normalized.error}`,
           track: null,
           saving: false,
+          exportAfterSave: false,
           saveError: null,
           savedContent: null,
           past: [],
@@ -270,6 +279,7 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
         ...state,
         timingError: null,
         saving: false,
+        exportAfterSave: false,
         saveError: null,
         interacting: false,
         savedContent: contentSnapshot(track.lines, alignment?.segments ?? []),
@@ -546,7 +556,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
   }, [unsavedChanges]);
 
-  const { saving, track } = state;
+  const { saving, track, exportAfterSave } = state;
 
   const alignTrack = useCallback(
     async (signal: AbortSignal) => {
@@ -556,8 +566,9 @@ export function EditorProvider({ children }: { children: ReactNode }) {
         lines: track.lines,
         segments: track.segments,
       };
+      let saved: SaveAlignmentResponse;
       try {
-        const saved = await api<SaveAlignmentResponse>(
+        saved = await api<SaveAlignmentResponse>(
           "/api/v1/track/alignment",
           {
             method: "PUT",
@@ -565,16 +576,6 @@ export function EditorProvider({ children }: { children: ReactNode }) {
             signal,
           },
         );
-        if (signal.aborted) return;
-        dispatch({
-          type: "loadSuccess",
-          payload: {
-            ...track,
-            duration_seconds: track.durationMs / 1000,
-            ...saved,
-          },
-        });
-        toast.success("Changes saved successfully");
       } catch (error: unknown) {
         if (signal.aborted) return;
         const message =
@@ -582,9 +583,31 @@ export function EditorProvider({ children }: { children: ReactNode }) {
             ? "Another session saved a newer version. Your changes are still here and have not been saved. Review the latest version."
             : "Could not save your changes. Your changes are still here and remain unsaved. Check your connection and try Save again.";
         dispatch({ type: "saveFailure", error: message });
+        return;
+      }
+      if (signal.aborted) return;
+      dispatch({
+        type: "loadSuccess",
+        payload: {
+          ...track,
+          duration_seconds: track.durationMs / 1000,
+          ...saved,
+        },
+      });
+      toast.success("Changes saved successfully");
+      if (exportAfterSave) {
+        try {
+          downloadTrackLrc({
+            title: track.title,
+            lines: saved.lines,
+            segments: saved.alignment?.segments ?? [],
+          });
+        } catch {
+          toast.error("Your changes were saved, but the download could not start. Try Export LRC again.");
+        }
       }
     },
-    [track],
+    [track, exportAfterSave],
   );
 
   useEffect(() => {

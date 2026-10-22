@@ -59,7 +59,7 @@ test('retry preserves unsaved timings and history, including after a repeated fa
   await expect(alert).toHaveCount(0);
   await expect(page.getByTestId('segment-a')).toContainText('0:00.200 – 0:03.200');
   await expect(page.getByText('Unsaved changes', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Save alignment', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await expect(page.getByTestId('segment-a')).toContainText('0:00.100 – 0:03.100');
 });

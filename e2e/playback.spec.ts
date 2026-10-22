@@ -40,7 +40,7 @@ test("native playback, pause, seek, and end synchronize the shared position", as
   const audio = page.locator("audio");
   const position = page.getByLabel("Current playback position");
   await expect(position).toHaveText("0:00.000");
-  expect(await audio.evaluate((element) => element.controls)).toBe(true);
+  expect(await audio.evaluate((element: HTMLAudioElement) => element.controls)).toBe(true);
 
   // Space belongs to the focused native audio control, without an app shortcut.
   await audio.focus();
@@ -53,23 +53,23 @@ test("native playback, pause, seek, and end synchronize the shared position", as
   await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 150)));
   await expect(position).toHaveText(pausedPosition!);
 
-  await audio.evaluate((element) => {
+  await audio.evaluate((element: HTMLAudioElement) => {
     element.currentTime = 4.25;
   });
   await expect(position).toHaveText("0:04.250");
   await expect.poll(() => playheadX(page)).toBeCloseTo(170, 1);
   await expect(
-    page.getByRole("button", { name: "Save", exact: true }),
+    page.getByRole("button", { name: "Save alignment", exact: true }),
   ).toBeDisabled();
   await expect(
     page.getByRole("button", { name: "Undo", exact: true }),
   ).toBeDisabled();
 
-  await audio.evaluate(async (element) => {
+  await audio.evaluate(async (element: HTMLAudioElement) => {
     element.currentTime = element.duration - 0.1;
     await element.play();
   });
-  await expect.poll(() => audio.evaluate((element) => element.ended)).toBe(true);
+  await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.ended)).toBe(true);
   await expect(position).toHaveText("0:12.500");
   await expect(page.getByText("Paused", { exact: true })).toBeVisible();
   await expect.poll(() => playheadX(page)).toBeCloseTo(500, 1);
@@ -82,7 +82,7 @@ test("playhead respects zoom and scrolling; karaoke follows playback independent
   await page
     .getByRole("button", { name: "Move Playback lyric first", exact: true })
     .click();
-  await page.locator("audio").evaluate((audio) => {
+  await page.locator("audio").evaluate((audio: HTMLAudioElement) => {
     audio.currentTime = 5;
   });
   await expect.poll(() => playheadX(page)).toBeCloseTo(200, 1);
@@ -96,15 +96,15 @@ test("playhead respects zoom and scrolling; karaoke follows playback independent
   await expect.poll(() => playheadX(page)).toBeCloseTo(800, 1);
   await expect(preview.getByText("♪ ♪ ♪", { exact: true })).toBeVisible();
   await expect(preview.getByText("Playback lyric first", { exact: true })).toHaveCount(0);
-  await page.locator("audio").evaluate((audio) => { audio.currentTime = 1.999; });
+  await page.locator("audio").evaluate((audio: HTMLAudioElement) => { audio.currentTime = 1.999; });
   await expect(preview.getByText("Playback lyric first", { exact: true })).toBeVisible();
-  await page.locator("audio").evaluate((audio) => { audio.currentTime = 2; });
+  await page.locator("audio").evaluate((audio: HTMLAudioElement) => { audio.currentTime = 2; });
   await expect(preview.getByText("♪ ♪ ♪", { exact: true })).toBeVisible();
   await expect(page.getByTestId("segment-first")).toHaveClass(
     /timeline-selected/,
   );
   await expect(
-    page.getByRole("button", { name: "Save", exact: true }),
+    page.getByRole("button", { name: "Save alignment", exact: true }),
   ).toBeDisabled();
 });
 
@@ -125,18 +125,18 @@ test("saving the same track preserves the audio element and running playback", a
     .press("ArrowRight");
   const audio = page.locator("audio");
   const original = await audio.elementHandle();
-  await audio.evaluate(async (element) => {
+  await audio.evaluate(async (element: HTMLAudioElement) => {
     element.currentTime = 3;
     await element.play();
   });
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Save alignment", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "Save", exact: true }),
+    page.getByRole("button", { name: "Save alignment", exact: true }),
   ).toBeDisabled();
   expect(
     await audio.evaluate((element, previous) => element === previous, original),
   ).toBe(true);
-  expect(await audio.evaluate((element) => element.paused)).toBe(false);
+  expect(await audio.evaluate((element: HTMLAudioElement) => element.paused)).toBe(false);
   await expect.poll(() => playheadX(page)).toBeGreaterThan(120);
 });
 
@@ -152,7 +152,7 @@ test("timeline seeking accounts for zoom and scroll and preserves playback state
   const position = page.getByLabel("Current playback position");
   await clickTimeline(page, 3000);
   await expect(position).toHaveText("0:03.000");
-  expect(await audio.evaluate((element) => element.paused)).toBe(true);
+  expect(await audio.evaluate((element: HTMLAudioElement) => element.paused)).toBe(true);
 
   await page.getByRole("button", { name: "Zoom in" }).click();
   await page.getByRole("button", { name: "Zoom in" }).click();
@@ -163,15 +163,15 @@ test("timeline seeking accounts for zoom and scroll and preserves playback state
   await expect(position).toHaveText("0:05.000");
   await expect.poll(() => playheadX(page)).toBeCloseTo(800, 1);
 
-  await audio.evaluate((element) => element.play());
+  await audio.evaluate((element: HTMLAudioElement) => element.play());
   await clickTimeline(page, 4000, 160);
   await expect
-    .poll(() => audio.evaluate((element) => element.currentTime))
+    .poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime))
     .toBeGreaterThanOrEqual(4);
-  expect(await audio.evaluate((element) => element.currentTime)).toBeLessThan(6);
-  expect(await audio.evaluate((element) => element.paused)).toBe(false);
+  expect(await audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBeLessThan(6);
+  expect(await audio.evaluate((element: HTMLAudioElement) => element.paused)).toBe(false);
   await expect(
-    page.getByRole("button", { name: "Save", exact: true }),
+    page.getByRole("button", { name: "Save alignment", exact: true }),
   ).toBeDisabled();
   await expect(
     page.getByRole("button", { name: "Undo", exact: true }),
@@ -195,10 +195,10 @@ test("native seek slider supports keyboard seeking and track boundaries", async 
   await expect(position).toHaveText("0:00.100");
   await expect(slider).toHaveAttribute("aria-valuetext", "0:00.100");
   expect(
-    await page.locator("audio").evaluate((element) => element.paused),
+    await page.locator("audio").evaluate((element: HTMLAudioElement) => element.paused),
   ).toBe(true);
   await expect(
-    page.getByRole("button", { name: "Save", exact: true }),
+    page.getByRole("button", { name: "Save alignment", exact: true }),
   ).toBeDisabled();
 });
 
@@ -206,7 +206,7 @@ test("selection, moving, resizing, dropping and empty-space drags do not seek", 
   await page.setViewportSize({ width: 1800, height: 1100 });
   await load(page);
   const position = page.getByLabel("Current playback position");
-  await page.locator("audio").evaluate((element) => {
+  await page.locator("audio").evaluate((element: HTMLAudioElement) => {
     element.currentTime = 9;
   });
   await expect(position).toHaveText("0:09.000");

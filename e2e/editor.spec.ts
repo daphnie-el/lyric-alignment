@@ -24,7 +24,7 @@ test('deleting a timed lyric supports undo and redo', async ({ page }) => {
   const line = lyrics.getByRole('button').filter({ hasText: track.lines[1].text });
   const undo = page.getByRole('button', { name: 'Undo', exact: true });
   const redo = page.getByRole('button', { name: 'Redo', exact: true });
-  const save = page.getByRole('button', { name: 'Save', exact: true });
+  const save = page.getByRole('button', { name: 'Save alignment', exact: true });
   const segment = page.getByTestId('segment-verse-b');
 
   await line.click();
@@ -59,7 +59,7 @@ test('lyric text commits on blur and follows undo, redo, and selection', async (
   const text = page.getByRole('textbox', { name: 'Lyric text', exact: true });
   const undo = page.getByRole('button', { name: 'Undo', exact: true });
   const redo = page.getByRole('button', { name: 'Redo', exact: true });
-  const save = page.getByRole('button', { name: 'Save', exact: true });
+  const save = page.getByRole('button', { name: 'Save alignment', exact: true });
   await expect(text).toHaveValue(longLine);
   await text.fill('An edited lyric');
   await expect(lyrics.getByRole('button').nth(1)).toContainText(longLine);
@@ -100,7 +100,7 @@ test('timing edits and lyric deletion share the same undo history', async ({ pag
   await expect(segment).toContainText('0:10.000 – 0:16.789');
   await undo.click();
   await expect(segment).toContainText('0:12.345 – 0:16.789');
-  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Save alignment', exact: true })).toBeDisabled();
   await redo.click();
   await expect(segment).toContainText('0:10.000 – 0:16.789');
   await lyrics.getByRole('button').nth(1).click();
@@ -135,17 +135,27 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 375, height: 812 
     await expect(preview.getByText('♪ ♪ ♪', { exact: true })).toBeVisible();
     await expect(preview.getByText(longLine, { exact: true })).toHaveCount(0);
 
-    await page.locator('audio').evaluate(audio => { audio.currentTime = 12.345; });
+    await page.locator('audio').evaluate((audio: HTMLAudioElement) => { audio.currentTime = 12.345; });
     await expect(preview.getByText(longLine, { exact: true })).toBeVisible();
     await expect(preview.getByText(track.lines[0].text, { exact: true })).toBeVisible();
 
-    await page.locator('audio').evaluate(audio => { audio.currentTime = 16.789; });
+    await page.locator('audio').evaluate((audio: HTMLAudioElement) => { audio.currentTime = 16.789; });
     await expect(preview.getByText('♪ ♪ ♪', { exact: true })).toBeVisible();
     await expect(line).toHaveAttribute('aria-current', 'true');
 
-    await page.locator('audio').evaluate(audio => { audio.currentTime = 20; });
+    await page.locator('audio').evaluate((audio: HTMLAudioElement) => { audio.currentTime = 20; });
     await lyrics.getByRole('button', { name: 'An untimed ending Untimed', exact: true }).click();
     await expect(line).toHaveAttribute('aria-current', 'false');
+    await expect(inspector.getByRole('textbox', { name: 'Lyric text', exact: true })).toHaveValue('An untimed ending');
+    await expect(inspector.getByRole('textbox', { name: 'Start', exact: true })).toBeDisabled();
+    await expect(inspector.getByRole('textbox', { name: 'Start', exact: true })).toHaveValue('');
+    await expect(inspector.getByRole('textbox', { name: 'End', exact: true })).toBeDisabled();
+    await expect(inspector.getByRole('textbox', { name: 'End', exact: true })).toHaveValue('');
+    await expect(page.getByTestId('segment-verse-c')).toHaveCount(0);
+    await expect(page.getByText('3 lines · 1 placed')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Save alignment', exact: true })).toBeDisabled();
+    await page.getByRole('button', { name: 'Stamp current time', exact: true }).click();
+    await lyrics.getByRole('button').nth(2).click();
     await expect(inspector.getByRole('textbox', { name: 'Start', exact: true })).toHaveValue('0:20');
     await expect(inspector.getByRole('textbox', { name: 'End', exact: true })).toHaveValue('4:07');
     await expect(inspector.getByText('3:47', { exact: true })).toBeVisible();
@@ -211,7 +221,7 @@ test.describe('timing edits', () => {
     await end.focus();
     await end.blur();
     await expect(page.getByTestId('segment-verse-b')).toContainText('0:12.345 – 0:16.789');
-    await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Save alignment', exact: true })).toBeDisabled();
     await end.fill('1:33');
     await end.press('Enter');
     await start.fill('1:30');

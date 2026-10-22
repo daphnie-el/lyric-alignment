@@ -9,7 +9,7 @@ const track = {
 const sheet = (page: Page) => page.getByRole('textbox', { name: 'Lyric sheet', exact: true });
 const add = (page: Page) => page.getByRole('button', { name: '+ Add line', exact: true });
 const addAll = (page: Page) => page.getByRole('button', { name: 'Add all lines', exact: true });
-const save = (page: Page) => page.getByRole('button', { name: 'Save', exact: true });
+const save = (page: Page) => page.getByRole('button', { name: 'Save alignment', exact: true });
 const lines = (page: Page) => page.getByRole('list', { name: 'Lyric lines' });
 
 async function load(page: Page, data = track) {

@@ -6,7 +6,7 @@ const track = {
   lines: ['a', 'b'].map((id, index) => ({ id, index, text: `Lyric ${id}` })),
   alignment: { segments: [{ line_id: 'a', start_ms: 0, end_ms: 3000 }] },
 };
-const save = (page: Page) => page.getByRole('button', { name: 'Save', exact: true });
+const save = (page: Page) => page.getByRole('button', { name: 'Save alignment', exact: true });
 const move = (page: Page) => page.getByRole('button', { name: 'Move Lyric a', exact: true });
 async function load(page: Page, data = track) {
   await page.route('**/test-audio.mp3', route => route.fulfill({ status: 204 }));
@@ -148,7 +148,7 @@ test('in-flight save blocks edits and duplicate submissions, keeps zoom and unlo
   await expect(busy).toBeDisabled();
   await expect(busy).toHaveAttribute('aria-busy', 'true');
   await expect(busy.locator('.button-spinner')).toBeVisible();
-  await expect(busy).toHaveAccessibleName('Save');
+  await expect(busy).toHaveAccessibleName('Save alignment');
   expect((await busy.boundingBox())!.width).toBeCloseTo(idleWidth, 1);
   await expect(busy.locator('.button-loading-label')).toHaveCSS('opacity', '0');
   expect(await busy.locator('.button-spinner').evaluate(element => getComputedStyle(element).animationName)).toBe('none');

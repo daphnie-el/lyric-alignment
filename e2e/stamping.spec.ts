@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { stampSegment, type Segment } from "../apps/web/src/editor/timing";
-import type { SaveAlignmentRequest } from "../apps/web/src/editor/EditorContext";
+import { stampSegment } from "../apps/web/src/editor/timing";
+import type { SaveAlignmentRequest, Segment } from "../apps/web/src/utils/types";
 import { mockAudio, waitForAudio } from "./helpers/audio";
 
 const track = {
@@ -41,11 +41,11 @@ async function load(page: Page, segments: Segment[] = []) {
 }
 
 async function seek(page: Page, seconds: number) {
-  await page.locator("audio").evaluate((audio, time) => {
+  await page.locator("audio").evaluate((audio: HTMLAudioElement, time) => {
     audio.currentTime = time;
   }, seconds);
   await expect
-    .poll(() => page.locator("audio").evaluate((audio) => audio.seeking))
+    .poll(() => page.locator("audio").evaluate((audio: HTMLAudioElement) => audio.seeking))
     .toBe(false);
 }
 
@@ -113,12 +113,12 @@ test("Space closes the previous lyric one millisecond early in one undo step", a
   await backgroundSpace(page);
   await expect(segment(page, "verse")).toContainText("0:00.000 – 0:14.250");
   await expect(lyric(page, "chorus")).toHaveAttribute("aria-current", "true");
-  await page.locator("audio").evaluate((audio) => audio.play());
+  await page.locator("audio").evaluate((audio: HTMLAudioElement) => audio.play());
   await expect
-    .poll(() => page.locator("audio").evaluate((audio) => audio.currentTime))
+    .poll(() => page.locator("audio").evaluate((audio: HTMLAudioElement) => audio.currentTime))
     .toBeGreaterThan(0.4);
   await backgroundSpace(page);
-  await page.locator("audio").evaluate((audio) => audio.pause());
+  await page.locator("audio").evaluate((audio: HTMLAudioElement) => audio.pause());
   const chorusStart = milliseconds((await endpoints(page, "chorus"))[0]);
   expect(milliseconds((await endpoints(page, "verse"))[1])).toBe(chorusStart - 1);
   await expect(lyric(page, "bridge")).toHaveAttribute("aria-current", "true");
@@ -134,16 +134,18 @@ test("Space closes the previous lyric one millisecond early in one undo step", a
   await expect(button(page)).toBeDisabled();
 });
 
-test("untimed clicks and restamping update both sheet neighbors without advancing clicks", async ({ page }) => {
+test("explicit stamps and restamping update both sheet neighbors; lyric clicks only select", async ({ page }) => {
   await load(page, [s("bridge", 10000, 12000)]);
   await seek(page, 1);
   await lyric(page, "verse").click();
+  await button(page).click();
   await expect(segment(page, "verse")).toContainText("0:01.000 – 0:09.999");
   await seek(page, 4.321);
   await lyric(page, "chorus").click();
+  await button(page).click();
   await expect(segment(page, "verse")).toContainText("0:01.000 – 0:04.320");
   await expect(segment(page, "chorus")).toContainText("0:04.321 – 0:09.999");
-  await expect(lyric(page, "chorus")).toHaveAttribute("aria-current", "true");
+  await expect(lyric(page, "bridge")).toHaveAttribute("aria-current", "true");
   await seek(page, 8);
   await lyric(page, "chorus").click();
   await expect(segment(page, "chorus")).toContainText("0:04.321 – 0:09.999");
@@ -217,9 +219,9 @@ test("Space leaves focused controls, editable content, modified and repeated key
     element.dispatchEvent(event);
   });
   await expect(segment(page, "verse")).toHaveCount(0);
-  // Space on an untimed lyric uses native button activation, without advancing.
+  // Space on an untimed lyric uses native button activation to select only.
   await lyric(page, "chorus").press("Space");
-  await expect(segment(page, "chorus")).toContainText("0:00.000 – 0:14.250");
+  await expect(segment(page, "chorus")).toHaveCount(0);
   await expect(lyric(page, "chorus")).toHaveAttribute("aria-current", "true");
   await expect(page.locator(".timeline-preview")).toHaveCount(0);
 });
@@ -244,7 +246,7 @@ test("saving stamped timings preserves sheet-based boundaries", async ({ page })
     });
   });
   await button(page).click();
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Save alignment", exact: true }).click();
   await expect(button(page)).toBeDisabled();
   await backgroundSpace(page);
   await expect(segment(page, "chorus")).toHaveCount(0);

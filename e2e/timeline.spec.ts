@@ -103,18 +103,37 @@ test("timing rules preserve gaps, cascade only when necessary, and reject atomic
   ).toContain("duplicate");
 });
 
-test("click stamps playback once; placed lyrics only select; keyboard resizing synchronizes inspector", async ({
+test("lyric clicks select only; explicit stamping and keyboard resizing synchronize inspector", async ({
   page,
 }) => {
   await load(page);
-  await page.locator("audio").evaluate((audio) => {
+  await page.locator("audio").evaluate((audio: HTMLAudioElement) => {
     audio.currentTime = 6;
   });
   const lyric = page
     .getByRole("list", { name: "Lyric lines" })
     .getByRole("button")
     .nth(2);
+  const inspector = page.getByRole("complementary", { name: "Selection" });
+  const undo = page.getByRole("button", { name: "Undo", exact: true });
+  const redo = page.getByRole("button", { name: "Redo", exact: true });
   await lyric.click();
+  await lyric.click();
+  await lyric.press("Enter");
+  await lyric.press("Space");
+  await expect(lyric).toHaveAttribute("aria-current", "true");
+  await expect(inspector.getByRole("textbox", { name: "Lyric text", exact: true })).toHaveValue("Lyric c");
+  for (const name of ["Start", "End"]) {
+    const field = inspector.getByRole("textbox", { name, exact: true });
+    await expect(field).toBeDisabled();
+    await expect(field).toHaveValue("");
+  }
+  await expect(page.getByTestId("segment-c")).toHaveCount(0);
+  await expect(page.getByText("4 lines · 2 placed")).toBeVisible();
+  await expect(undo).toBeDisabled();
+  await expect(redo).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Save alignment", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Stamp current time", exact: true }).click();
   await lyric.click();
   await expect(page.getByTestId("segment-c")).toHaveCount(1);
   await expect(page.getByText("4 lines · 3 placed")).toBeVisible();
@@ -364,11 +383,11 @@ test("scrolled drops use the content position and reject a segment past the audi
   );
 });
 
-test("click stamps a shortened segment near the track end", async ({
+test("explicit stamping shortens a segment near the track end", async ({
   page,
 }) => {
   await load(page, { ...track, duration_seconds: 7 });
-  await page.locator("audio").evaluate((audio) => {
+  await page.locator("audio").evaluate((audio: HTMLAudioElement) => {
     audio.currentTime = 6;
   });
   await page
@@ -376,6 +395,7 @@ test("click stamps a shortened segment near the track end", async ({
     .getByRole("button")
     .nth(2)
     .click();
+  await page.getByRole("button", { name: "Stamp current time", exact: true }).click();
   await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(page.getByTestId("segment-c")).toContainText(
     "0:06.000 – 0:07.000",
@@ -404,6 +424,10 @@ test("undo and redo restore insertions and their entire ripple in one step", asy
   await expect(page.getByTestId("segment-b")).toContainText(
     "0:03.000 – 0:06.000",
   );
+  await expect(undo).toBeDisabled();
+  await page.getByRole("list", { name: "Lyric lines" }).getByRole("button").nth(3).click();
+  await page.getByRole("list", { name: "Lyric lines" }).getByRole("button").nth(2).click();
+  await expect(redo).toBeEnabled();
   await expect(undo).toBeDisabled();
   // Selection stays on the lyric even while its placement is undone.
   await expect(
@@ -690,10 +714,11 @@ test("clear selection removes only the selected placement and supports undo, red
     "0:03.000 – 0:06.000",
   );
   await expect(preview.getByText("♪ ♪ ♪", { exact: true })).toBeVisible();
-  await page.locator("audio").evaluate((audio) => {
+  await page.locator("audio").evaluate((audio: HTMLAudioElement) => {
     audio.currentTime = 0;
   });
   await lyrics.getByRole("button", { name: /Lyric a Untimed/ }).click();
+  await page.getByRole("button", { name: "Stamp current time", exact: true }).click();
   await expect(page.getByTestId("segment-a")).toContainText(
     "0:00.000 – 0:02.999",
   );
@@ -704,7 +729,7 @@ test("clearing an unplaced selection preserves history; removing a placement cle
   page,
 }) => {
   await load(page);
-  await page.locator("audio").evaluate((audio) => {
+  await page.locator("audio").evaluate((audio: HTMLAudioElement) => {
     audio.currentTime = 6;
   });
   const inspector = page.getByRole("complementary", { name: "Selection" });
@@ -715,6 +740,7 @@ test("clearing an unplaced selection preserves history; removing a placement cle
     .getByRole("button")
     .nth(2)
     .click();
+  await page.getByRole("button", { name: "Stamp current time", exact: true }).click();
   await undo.click();
   await expect(
     inspector.getByRole("textbox", { name: "Start", exact: true }),
@@ -964,7 +990,7 @@ test("Shift-click toggles nonadjacent lines, updates inspector, and does not dir
     page.getByRole("button", { name: "Resize start of Lyric a", exact: true }),
   ).toBeDisabled();
   await expect(
-    page.getByRole("button", { name: "Save", exact: true }),
+    page.getByRole("button", { name: "Save alignment", exact: true }),
   ).toBeDisabled();
   await expect(
     page.getByRole("button", { name: "Undo", exact: true }),
@@ -996,7 +1022,7 @@ test("Shift-click toggles nonadjacent lines, updates inspector, and does not dir
     .click({ position: { x: 200, y: 30 } });
   await expect(page.locator(".timeline-selected")).toHaveCount(0);
   expect(
-    await page.locator("audio").evaluate((audio) => audio.currentTime),
+    await page.locator("audio").evaluate((audio: HTMLAudioElement) => audio.currentTime),
   ).toBe(5);
 });
 
@@ -1095,9 +1121,9 @@ test("group keyboard movement saves all endpoints without persisting selection",
       },
     });
   });
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Save alignment", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "Save", exact: true }),
+    page.getByRole("button", { name: "Save alignment", exact: true }),
   ).toBeDisabled();
   expect(body).toEqual({
     version: 0,
@@ -1162,10 +1188,10 @@ test("zero-offset group drags preserve redo and undo prunes placements from sele
     page.getByRole("button", { name: "Undo", exact: true }),
   ).toBeDisabled();
   await expect(
-    page.getByRole("button", { name: "Save", exact: true }),
+    page.getByRole("button", { name: "Save alignment", exact: true }),
   ).toBeDisabled();
   await expect(page.locator(".timeline-selected")).toHaveCount(2);
-  await page.locator("audio").evaluate((audio) => {
+  await page.locator("audio").evaluate((audio: HTMLAudioElement) => {
     audio.currentTime = 16;
   });
   await page
@@ -1173,6 +1199,7 @@ test("zero-offset group drags preserve redo and undo prunes placements from sele
     .getByRole("button")
     .nth(3)
     .click();
+  await page.getByRole("button", { name: "Stamp current time", exact: true }).click();
   await selectGroup(page, ["a", "d"]);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(page.getByTestId("segment-d")).toHaveCount(0);
