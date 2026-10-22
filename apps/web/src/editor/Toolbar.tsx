@@ -2,6 +2,7 @@ import { useRef } from "react";
 import AudioPlayer from "../components/AudioPlayer";
 import { Button } from "../components/Button";
 import { DialogFooter } from "../components/DialogFooter";
+import ThemeToggle from "../components/ThemeToggle";
 import { useEditorDispatch, useEditorState } from "../context/EditorContext";
 import { formatTime } from "../utils/formatTime";
 import { downloadTrackLrc } from "../utils/helpers";
@@ -53,31 +54,34 @@ export default function Toolbar() {
           <AudioPlayer src={track.audio_url} />
         </div>
       ) : null}
-      <div className="flex flex-col gap-2">
-        <Button
-          ref={exportButtonRef}
-          title="LRC export"
-          color="outline"
-          className="font-semibold"
-          disabled={exportDisabled}
-          aria-describedby={track && !timed ? "export-guidance" : undefined}
-          onClick={() => {
-            if (exportDisabled) return;
-            if (!untimed && !unsavedChanges) {
-              exportLrc();
-              return;
-            }
-            dialogRef.current?.showModal();
-            keepEditingRef.current?.focus();
-          }}
-        >
-          Export LRC
-        </Button>
-        {track && !timed ? (
-          <p id="export-guidance" className="m-0 text-xs">
-            Time at least one lyric line to export.
-          </p>
-        ) : null}
+      <div className="flex items-start gap-3">
+        <div className="flex flex-col gap-2">
+          <Button
+            ref={exportButtonRef}
+            title="LRC export"
+            color="outline"
+            className="font-semibold"
+            disabled={exportDisabled}
+            aria-describedby={track && !timed ? "export-guidance" : undefined}
+            onClick={() => {
+              if (exportDisabled) return;
+              if (!untimed && !unsavedChanges) {
+                exportLrc();
+                return;
+              }
+              dialogRef.current?.showModal();
+              keepEditingRef.current?.focus();
+            }}
+          >
+            Export LRC
+          </Button>
+          {track && !timed ? (
+            <p id="export-guidance" className="m-0 text-xs">
+              Time at least one lyric line to export.
+            </p>
+          ) : null}
+        </div>
+        <ThemeToggle />
       </div>
       <dialog
         ref={dialogRef}

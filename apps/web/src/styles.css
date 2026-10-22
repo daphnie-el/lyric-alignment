@@ -273,6 +273,45 @@ audio {
     gap: 0.5rem;
   }
 
+  .button.theme-toggle {
+    height: calc(1lh + 18px);
+    width: 72px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: var(--color-elevated);
+    color: var(--color-text-muted);
+  }
+
+  .button.theme-toggle[aria-checked="true"],
+  .button.theme-toggle[aria-checked="true"]:hover:not(:disabled) {
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+  }
+
+  .theme-toggle-thumb {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    display: grid;
+    place-items: center;
+    height: calc(100% - 8px);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: var(--color-surface);
+    color: var(--color-text);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 15%);
+    transition: transform 160ms ease;
+  }
+
+  .theme-toggle[aria-checked="true"] .theme-toggle-thumb {
+    transform: translateX(calc(72px - 1lh - 18px));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .theme-toggle-thumb { transition: none; }
+  }
+
   .button-loading-label { opacity: 0; }
 
   .button-spinner {
