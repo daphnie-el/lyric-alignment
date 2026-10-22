@@ -92,10 +92,7 @@ export default function LyricsPane() {
         </span>
       </div>
       <div className="flex flex-col gap-2">
-        <label
-          htmlFor="lyric-sheet"
-          className="text-sm text-(--color-text-muted)"
-        >
+        <label htmlFor="lyric-sheet" className="text-sm text-(--color-text)">
           Lyric sheet
         </label>
         <textarea
