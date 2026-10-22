@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useId,
   useRef,
   useState,
   type FormEvent,
@@ -8,6 +9,7 @@ import {
 import { toast } from "sonner";
 import { ApiError, api } from "../api";
 import { Button } from "../components/Button";
+import { DialogFooter } from "../components/DialogFooter";
 import { useEditorDispatch, useEditorState } from "../context/EditorContext";
 import { downloadTrackLrc } from "../utils/helpers";
 import { probeAudio } from "../utils/probeAudio";
@@ -22,6 +24,7 @@ export default function SongImport() {
 }
 
 function LoadSongDialog() {
+  const sourceFormId = useId();
   const {
     track,
     unsavedChanges,
@@ -219,21 +222,21 @@ function LoadSongDialog() {
       aria-labelledby="load-song-title"
       aria-describedby="load-song-description"
       aria-busy={importing || probing}
-      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-(--color-border) bg-(--color-surface) p-6 text-(--color-text) shadow-xl backdrop:bg-black/50"
+      className="m-auto max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-xl border border-(--color-border) bg-(--color-surface) p-0 text-(--color-text) shadow-xl backdrop:bg-black/50"
       onKeyDown={containKeys}
       onCancel={(event) => {
         event.preventDefault();
         close();
       }}
     >
-      <div className="mb-4 flex items-start justify-between gap-4">
+      <div className="flex items-center justify-between gap-4 px-6 py-5">
         <h2 id="load-song-title" ref={headingRef} tabIndex={-1} className="m-0">
           {candidate ? "Replace current song?" : "Load song"}
         </h2>
         <Button
           aria-label="Close load song dialog"
           disabled={importing}
-          className="shrink-0 border-0 p-0"
+          className="grid size-8 shrink-0 place-items-center border-0 bg-transparent p-0"
           onClick={close}
         >
           <svg
@@ -249,32 +252,138 @@ function LoadSongDialog() {
           </svg>
         </Button>
       </div>
-      {candidate ? (
-        <>
-          <p id="load-song-description">
-            Loading a new song removes the current song, lyrics, and alignment.
-            Previous files are not kept.
-            {unsavedChanges ? " You have unsaved changes." : ""} Export your
-            timed lyrics before continuing if you want to keep them.
-          </p>
-          <p className="text-sm">
-            LRC export includes {timed} timed {timed === 1 ? "line" : "lines"}.
-            Audio and {untimed} untimed{" "}
-            {untimed === 1 ? "line is" : "lines are"} excluded.
-          </p>
-          <p className="wrap-break-word text-sm">
-            New song:{" "}
-            {candidate.source instanceof File
-              ? candidate.source.name
-              : candidate.source}
-          </p>
-          {!timed ? (
-            <p className="text-sm">
-              There are no timed lyrics to export. Close this dialog to keep
-              working, or continue to replace the song.
+      <div className="px-6 pb-6">
+        {candidate ? (
+          <>
+            <p id="load-song-description">
+              Loading a new song removes the current song, lyrics, and
+              alignment. Previous files are not kept.
+              {unsavedChanges ? " You have unsaved changes." : ""} Export your
+              timed lyrics before continuing if you want to keep them.
             </p>
-          ) : null}
-          <div className="flex flex-wrap justify-end gap-3">
+            <p className="text-sm font-bold">
+              LRC export includes {timed} timed {timed === 1 ? "line" : "lines"}
+              . Audio and {untimed} untimed{" "}
+              {untimed === 1 ? "line is" : "lines are"} excluded.
+            </p>
+            <p className="wrap-break-word text-sm">
+              New song:{" "}
+              {candidate.source instanceof File
+                ? candidate.source.name
+                : candidate.source}
+            </p>
+            {!timed ? (
+              <p className="text-sm">
+                There are no timed lyrics to export. Close this dialog to keep
+                working, or continue to replace the song.
+              </p>
+            ) : null}
+          </>
+        ) : (
+          <form id={sourceFormId} onSubmit={(event) => void checkSource(event)}>
+            <p id="load-song-description">
+              Choose an MP3, WAV, Ogg, or M4A file up to 100 MiB, or enter a
+              direct audio URL. Streaming-service webpage links are not
+              supported.
+            </p>
+            <fieldset
+              disabled={probing || importing}
+              className="mb-4 flex gap-4"
+            >
+              <legend className="mb-2 text-sm">Audio source</legend>
+
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="song-source"
+                  checked={sourceType === "url"}
+                  onChange={() => {
+                    setSourceType("url");
+                    setFile(null);
+                    setError(null);
+                  }}
+                />
+                Audio URL
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="song-source"
+                  checked={sourceType === "file"}
+                  onChange={() => {
+                    setSourceType("file");
+                    setError(null);
+                  }}
+                />
+                Device file
+              </label>
+            </fieldset>
+            {sourceType === "file" ? (
+              <label className="flex flex-col gap-2">
+                Audio file
+                <input
+                  type="file"
+                  accept=".mp3,.wav,.ogg,.m4a"
+                  disabled={probing || importing}
+                  onChange={(event) => {
+                    setFile(event.currentTarget.files?.[0] ?? null);
+                    setError(null);
+                  }}
+                />
+              </label>
+            ) : (
+              <label className="flex flex-col gap-2">
+                Direct audio URL
+                <input
+                  type="text"
+                  inputMode="url"
+                  autoComplete="url"
+                  placeholder="https://example.com/song.mp3"
+                  value={url}
+                  disabled={probing || importing}
+                  onChange={(event) => {
+                    setUrl(event.currentTarget.value);
+                    setError(null);
+                  }}
+                />
+              </label>
+            )}
+          </form>
+        )}
+        {probing || importing ? (
+          <p role="status">
+            {importPlaybackPending
+              ? "Loading song into player…"
+              : importing
+                ? "Storing song…"
+                : "Checking audio…"}
+          </p>
+        ) : null}
+        {message ? (
+          <p
+            role="alert"
+            className="mt-4 wrap-break-word text-(--color-danger)"
+          >
+            {message}
+          </p>
+        ) : null}
+      </div>
+      <DialogFooter>
+        {candidate ? (
+          <>
+            <Button
+              disabled={importing}
+              onClick={(event) => {
+                // This button may become the source form's submit button after rendering.
+                event.preventDefault();
+                setCandidate(null);
+                setFile(null);
+                setError(null);
+                dispatch({ type: "openImport" });
+              }}
+            >
+              Choose another source
+            </Button>
             <Button
               disabled={importing || !timed}
               onClick={() => void continueImport(true)}
@@ -288,111 +397,19 @@ function LoadSongDialog() {
             >
               Continue
             </Button>
-          </div>
+          </>
+        ) : (
           <Button
-            disabled={importing}
-            className="mt-3"
-            onClick={() => {
-              setCandidate(null);
-              setFile(null);
-              setError(null);
-              dispatch({ type: "openImport" });
-            }}
+            form={sourceFormId}
+            type="submit"
+            color="primary"
+            loading={probing || importing}
+            disabled={sourceType === "file" ? !file : !url.trim()}
           >
-            Choose another source
+            Load song
           </Button>
-        </>
-      ) : (
-        <form onSubmit={(event) => void checkSource(event)}>
-          <p id="load-song-description">
-            Choose an MP3, WAV, Ogg, or M4A file up to 100 MiB, or enter a
-            direct audio URL. Streaming-service webpage links are not supported.
-          </p>
-          <fieldset disabled={probing || importing} className="mb-4 flex gap-4">
-            <legend className="mb-2 text-sm">Audio source</legend>
-
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="song-source"
-                checked={sourceType === "url"}
-                onChange={() => {
-                  setSourceType("url");
-                  setFile(null);
-                  setError(null);
-                }}
-              />
-              Audio URL
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="song-source"
-                checked={sourceType === "file"}
-                onChange={() => {
-                  setSourceType("file");
-                  setError(null);
-                }}
-              />
-              Device file
-            </label>
-          </fieldset>
-          {sourceType === "file" ? (
-            <label className="flex flex-col gap-2">
-              Audio file
-              <input
-                type="file"
-                accept=".mp3,.wav,.ogg,.m4a"
-                disabled={probing || importing}
-                onChange={(event) => {
-                  setFile(event.currentTarget.files?.[0] ?? null);
-                  setError(null);
-                }}
-              />
-            </label>
-          ) : (
-            <label className="flex flex-col gap-2">
-              Direct audio URL
-              <input
-                type="text"
-                inputMode="url"
-                autoComplete="url"
-                placeholder="https://example.com/song.mp3"
-                value={url}
-                disabled={probing || importing}
-                onChange={(event) => {
-                  setUrl(event.currentTarget.value);
-                  setError(null);
-                }}
-              />
-            </label>
-          )}
-          <div className="mt-4 flex justify-end">
-            <Button
-              type="submit"
-              color="primary"
-              loading={probing || importing}
-              disabled={sourceType === "file" ? !file : !url.trim()}
-            >
-              Load song
-            </Button>
-          </div>
-        </form>
-      )}
-      {probing || importing ? (
-        <p role="status">
-          {importPlaybackPending
-            ? "Loading song into player…"
-            : importing
-              ? "Storing song…"
-              : "Checking audio…"}
-        </p>
-      ) : null}
-      {message ? (
-        <p role="alert" className="mt-4 wrap-break-word text-(--color-danger)">
-          {message}
-        </p>
-      ) : null}
+        )}
+      </DialogFooter>
     </dialog>
   );
 }

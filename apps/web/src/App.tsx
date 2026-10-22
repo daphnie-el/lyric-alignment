@@ -2,8 +2,8 @@ import { Toaster } from "sonner";
 import { EditorProvider } from "./context/EditorContext";
 import { PlaybackProvider } from "./context/PlaybackContext";
 import { EditorLayout } from "./editor/EditorLayout";
-import ErrorBoundary from "./ErrorBoundary";
 import SongImport from "./editor/LoadSongDialog";
+import ErrorBoundary from "./error-boundary";
 
 export default function App() {
   return (

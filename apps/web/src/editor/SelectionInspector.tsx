@@ -1,21 +1,40 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "../components/Button";
+import { DialogFooter } from "../components/DialogFooter";
 import { Input } from "../components/Input";
 import { useEditorDispatch, useEditorState } from "../context/EditorContext";
 import { formatTime } from "../utils/formatTime";
+import {
+  lyricWords,
+  parseSplitTime,
+  splitLyricText,
+} from "../utils/splitLyric";
 import { timingError } from "../utils/timing";
-import { Segment } from "../utils/types";
+import { LyricLine, Segment } from "../utils/types";
 
 export default function SelectionInspector() {
   const lyricInputId = useId();
   const lyricHintId = useId();
-  const { track, selectedLineId, selectedTimelineIds, editingLocked: saving } =
-    useEditorState();
+  const {
+    track,
+    selectedLineId,
+    selectedTimelineIds,
+    status,
+    interacting,
+    editingLocked: saving,
+  } = useEditorState();
   const dispatch = useEditorDispatch();
   const line = track?.lines.find((item) => item.id === selectedLineId);
   const segment = track?.segments.find(
     (item) => item.line_id === selectedLineId,
   );
+  const singleLine = selectedTimelineIds.length <= 1 ? line : undefined;
+  const mergeDisabled =
+    saving ||
+    interacting ||
+    status !== "ready" ||
+    !singleLine ||
+    track?.lines.at(-1)?.id === singleLine.id;
 
   return (
     <aside
@@ -78,7 +97,7 @@ export default function SelectionInspector() {
             </div>
             <p
               id={lyricHintId}
-              className="mb-0 mt-2 italic text-[10px] text-(--color-text-muted)"
+              className="mb-0 mt-2 italic text-xs text-(--color-text-muted)"
             >
               Edit your lyric, then click outside or press <kbd>Tab</kbd> to
               apply.
@@ -92,30 +111,272 @@ export default function SelectionInspector() {
           />
           <Button
             disabled={saving}
-            className="w-full"
+            className="w-full bg-none border border-(--color-danger)/50 text-(--color-danger) hover:bg-(--color-danger-bg)/50"
             onClick={() => dispatch({ type: "removeSegment", lineId: line.id })}
           >
             Remove Segment
           </Button>
-          <div className="mt-6 flex flex-col gap-2 border-t border-(--color-border) pt-5">
-            <Button disabled>Merge with next</Button>
-            <Button disabled>Split</Button>
-            <Button
-              color="danger"
-              disabled={saving}
-              onClick={() => dispatch({ type: "deleteLine", lineId: line.id })}
-            >
-              Delete
-            </Button>
-            <p className="mt-1 text-xs">
-              Drag timeline blocks or edit their timing here.
-            </p>
-          </div>
         </>
       ) : (
         <p className="mt-5 text-sm">Select a lyric line to view its timing.</p>
       )}
+      {singleLine ? (
+        <div className="mt-6 flex flex-col gap-2 border-t border-(--color-border) pt-5">
+          <Button
+            disabled={mergeDisabled}
+            onClick={() =>
+              dispatch({ type: "mergeWithNext", lineId: singleLine.id })
+            }
+            color="outline"
+          >
+            Merge with next lyric
+          </Button>
+          <SplitLyric
+            key={singleLine.id}
+            line={singleLine}
+            segment={segment}
+            disabled={saving || interacting || status !== "ready"}
+          />
+          <Button
+            color="danger"
+            disabled={saving}
+            onClick={() =>
+              dispatch({ type: "deleteLine", lineId: singleLine.id })
+            }
+          >
+            Delete
+          </Button>
+        </div>
+      ) : null}
     </aside>
+  );
+}
+
+function SplitLyric({
+  line,
+  segment,
+  disabled,
+}: {
+  line: LyricLine;
+  segment: Segment | undefined;
+  disabled: boolean;
+}) {
+  const source = JSON.stringify([
+    line.text,
+    segment?.start_ms,
+    segment?.end_ms,
+  ]);
+  const [form, setForm] = useState({ source, open: false });
+  // Reset during render so a changed source cannot submit a stale boundary.
+  if (form.source !== source) setForm({ source, open: false });
+  const unavailable =
+    disabled ||
+    lyricWords(line.text).length < 3 ||
+    (!!segment && segment.end_ms - segment.start_ms < 2);
+
+  return (
+    <>
+      <Button
+        disabled={unavailable}
+        aria-haspopup="dialog"
+        aria-expanded={form.source === source && form.open}
+        onClick={() => setForm({ source, open: true })}
+      >
+        Split
+      </Button>
+      {form.source === source && form.open ? (
+        <SplitDialog
+          line={line}
+          segment={segment}
+          disabled={unavailable}
+          onClose={() => setForm({ source, open: false })}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function SplitDialog({
+  line,
+  segment,
+  disabled,
+  onClose,
+}: {
+  line: LyricLine;
+  segment: Segment | undefined;
+  disabled: boolean;
+  onClose: () => void;
+}) {
+  const dispatch = useEditorDispatch();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const boundaryRef = useRef<HTMLSelectElement>(null);
+  const titleId = useId();
+  const boundaryId = useId();
+  const timeId = useId();
+  const words = lyricWords(line.text);
+  const [afterWord, setAfterWord] = useState(Math.floor(words.length / 2));
+  const [time, setTime] = useState(() =>
+    segment
+      ? formatTime(
+          segment.start_ms +
+            Math.floor((segment.end_ms - segment.start_ms) / 2),
+          true,
+        )
+      : "",
+  );
+  const splitMs = parseSplitTime(time);
+  const error = segment
+    ? splitMs === undefined
+      ? "Enter a time as m:ss or m:ss.SSS."
+      : splitMs <= segment.start_ms || splitMs >= segment.end_ms
+        ? "Split time must be strictly between Start and End."
+        : undefined
+    : undefined;
+  const parts = splitLyricText(line.text, afterWord);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    dialog?.showModal();
+    boundaryRef.current?.focus();
+    return () => dialog?.close();
+  }, []);
+
+  function close() {
+    dialogRef.current?.close();
+    onClose();
+  }
+
+  return (
+    <dialog
+      ref={dialogRef}
+      aria-labelledby={titleId}
+      className="m-auto max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-xl border border-(--color-border) bg-(--color-surface) p-0 text-(--color-text) shadow-xl backdrop:bg-black/50"
+      onCancel={(event) => {
+        event.preventDefault();
+        close();
+      }}
+      onKeyDown={(event) => {
+        event.stopPropagation();
+        if (event.key !== "Tab") return;
+        const controls = event.currentTarget.querySelectorAll<HTMLElement>(
+          "button:not(:disabled), input:not(:disabled), select:not(:disabled)",
+        );
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (event.shiftKey && event.target === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && event.target === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }}
+    >
+      <header className="flex items-center justify-between gap-4 px-6 py-5">
+        <h2 id={titleId} className="m-0 leading-tight">
+          Split lyric
+        </h2>
+        <Button
+          aria-label="Close split dialog"
+          className="grid size-8 shrink-0 place-items-center border-0 bg-transparent p-0"
+          onClick={close}
+        >
+          <svg
+            aria-hidden="true"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          >
+            <path d="m6 6 12 12M18 6 6 18" />
+          </svg>
+        </Button>
+      </header>
+      <form
+        aria-label="Split lyric"
+        className="flex flex-col"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (disabled || error || !parts) return;
+          dispatch({
+            type: "splitLine",
+            lineId: line.id,
+            newId: crypto.randomUUID(),
+            afterWord,
+            splitMs: segment ? splitMs : undefined,
+          });
+          close();
+        }}
+      >
+        <div className="flex flex-col gap-3 px-6 pb-6">
+          <label htmlFor={boundaryId}>Split after word</label>
+          <select
+            ref={boundaryRef}
+            id={boundaryId}
+            className="input"
+            disabled={disabled}
+            value={afterWord}
+            onChange={(event) =>
+              setAfterWord(Number(event.currentTarget.value))
+            }
+          >
+            {words.slice(0, -1).map((word, index) => (
+              <option key={index} value={index + 1}>
+                {index + 1}: {word.text}
+              </option>
+            ))}
+          </select>
+          <div className="flex flex-col gap-4 py-1">
+            <div>
+              <span className="mb-2 inline-block rounded-full bg-(--color-primary-button) px-3 py-1 text-xs font-semibold text-(--color-on-primary)">
+                First part
+              </span>
+              <p className="m-0 whitespace-pre-wrap wrap-break-word text-(--color-text)">
+                {parts?.[0]}
+              </p>
+            </div>
+            <div>
+              <span className="mb-2 inline-block rounded-full bg-(--color-primary-button) px-3 py-1 text-xs font-semibold text-(--color-on-primary)">
+                Second part
+              </span>
+              <p className="m-0 whitespace-pre-wrap wrap-break-word text-(--color-text)">
+                {parts?.[1]}
+              </p>
+            </div>
+          </div>
+          {segment ? (
+            <>
+              <label htmlFor={timeId}>Split timestamp</label>
+              <Input
+                id={timeId}
+                value={time}
+                disabled={disabled}
+                placeholder="m:ss.SSS"
+                error={error}
+                onChange={(event) => setTime(event.currentTarget.value)}
+              />
+              <p className="m-0 text-xs">
+                Choose a time between {formatTime(segment.start_ms, true)} and{" "}
+                {formatTime(segment.end_ms, true)}.
+              </p>
+            </>
+          ) : null}
+        </div>
+        <DialogFooter>
+          <Button onClick={close}>Cancel</Button>
+          <Button
+            color="primary"
+            type="submit"
+            disabled={disabled || !!error || !parts}
+          >
+            Split
+          </Button>
+        </DialogFooter>
+      </form>
+    </dialog>
   );
 }
 

@@ -272,28 +272,27 @@ test("timeline seeking accounts for zoom and scroll and preserves playback state
   ).toBeDisabled();
 });
 
-test("native seek slider supports keyboard seeking and track boundaries", async ({ page }) => {
+test("timeline seeking reaches track boundaries without changing alignment", async ({ page }) => {
+  await page.setViewportSize({ width: 1800, height: 1100 });
   await load(page);
-  const slider = page.getByRole("slider", { name: "Seek playback" });
   const position = page.getByLabel("Current playback position");
-  await slider.focus();
-  await slider.press("End");
+  await clickTimeline(page, 6000);
+  await expect(position).toHaveText("0:06.000");
+  // Click the canvas padding beyond the final timestamp to verify clamping.
+  await clickTimeline(page, 12700);
   await expect(position).toHaveText("0:12.500");
-  await slider.press("ArrowRight");
-  await expect(position).toHaveText("0:12.500");
-  await slider.press("Home");
+  await clickTimeline(page, 0);
   await expect(position).toHaveText("0:00.000");
-  await slider.press("ArrowLeft");
-  await expect(position).toHaveText("0:00.000");
-  await slider.press("ArrowRight");
+  await clickTimeline(page, 100);
   await expect(position).toHaveText("0:00.100");
-  await expect(slider).toHaveAttribute("aria-valuetext", "0:00.100");
   expect(
     await page.locator("audio").evaluate((element: HTMLAudioElement) => element.paused),
   ).toBe(true);
   await expect(
     page.getByRole("button", { name: "Save alignment", exact: true }),
   ).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeDisabled();
+  await expect(page.getByTestId("segment-first")).toContainText("0:00.000 – 0:02.000");
 });
 
 test("selection, moving, resizing, dropping and empty-space drags do not seek", async ({ page }) => {
@@ -363,11 +362,12 @@ test("seeking is unavailable when audio metadata cannot load", async ({ page }) 
   );
   await page.goto("/");
   await expect(page.getByRole("heading", { name: track.title })).toBeVisible();
-  await expect(
-    page.getByRole("slider", { name: "Seek playback" }),
-  ).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Retry playback", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Stamp current time", exact: true })).toBeDisabled();
   await clickTimeline(page, 4000);
   await expect(page.getByLabel("Current playback position")).toHaveText(
     "0:00.000",
   );
+  expect(await page.locator("audio").evaluate((audio: HTMLAudioElement) => audio.currentTime)).toBe(0);
+  await expect(page.getByRole("button", { name: "Save alignment", exact: true })).toBeDisabled();
 });

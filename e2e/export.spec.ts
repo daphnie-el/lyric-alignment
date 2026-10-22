@@ -184,8 +184,8 @@ for (const unsaved of [false, true]) {
     const close = page.getByRole("button", { name: "Close export dialog", exact: true });
     await expect(close).toBeVisible();
     const closeBox = (await close.boundingBox())!;
-    expect(closeBox.width).toBe(20);
-    expect(closeBox.height).toBe(20);
+    expect(closeBox.width).toBe(32);
+    expect(closeBox.height).toBe(32);
     const titleBox = (await dialog(page).getByRole("heading").boundingBox())!;
     expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(closeBox.x);
     await close.click();

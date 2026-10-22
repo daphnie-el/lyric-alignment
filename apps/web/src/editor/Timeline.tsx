@@ -452,6 +452,16 @@ export default function Timeline() {
               </div>
               <div>
                 <dt className="mb-1 font-medium text-(--color-text)">
+                  Delete selected segments
+                </dt>
+                <dd className="m-0 leading-relaxed">
+                  <kbd>Shift</kbd> + click to select multiple lines, then press{" "}
+                  <kbd>Delete</kbd> to remove their timeline segments. Lyrics stay
+                  in the lyric sheet.
+                </dd>
+              </div>
+              <div>
+                <dt className="mb-1 font-medium text-(--color-text)">
                   Clear selection
                 </dt>
                 <dd className="m-0 leading-relaxed">

@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import AudioPlayer from "../components/AudioPlayer";
 import { Button } from "../components/Button";
+import { DialogFooter } from "../components/DialogFooter";
 import { useEditorDispatch, useEditorState } from "../context/EditorContext";
 import { formatTime } from "../utils/formatTime";
 import { downloadTrackLrc } from "../utils/helpers";
@@ -82,7 +83,7 @@ export default function Toolbar() {
         ref={dialogRef}
         aria-labelledby="export-dialog-title"
         aria-describedby="export-dialog-description"
-        className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-(--color-border) bg-(--color-surface) p-6 text-(--color-text) shadow-xl backdrop:bg-black/50"
+        className="m-auto max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-xl border border-(--color-border) bg-(--color-surface) p-0 text-(--color-text) shadow-xl backdrop:bg-black/50"
         onClose={() => exportButtonRef.current?.focus()}
         onKeyDown={(event) => {
           event.stopPropagation();
@@ -99,7 +100,7 @@ export default function Toolbar() {
           }
         }}
       >
-        <div className="flex items-end py-4 gap-3 h-10">
+        <div className="flex items-center gap-4 px-6 py-5">
           <h2
             id="export-dialog-title"
             className="m-0 min-w-0 flex-1 wrap-break-word"
@@ -111,7 +112,7 @@ export default function Toolbar() {
           <Button
             ref={closeDialogRef}
             aria-label="Close export dialog"
-            className="flex w-fit shrink-0 justify-end border-0 items-end p-0"
+            className="grid size-8 shrink-0 place-items-center border-0 bg-transparent p-0"
             onClick={() => dialogRef.current?.close()}
           >
             <svg
@@ -129,7 +130,7 @@ export default function Toolbar() {
             </svg>
           </Button>
         </div>
-        <p id="export-dialog-description">
+        <p id="export-dialog-description" className="m-0 px-6 pb-6">
           {unsavedChanges
             ? "Your changes haven’t been saved. You can save before exporting or export without saving. "
             : null}
@@ -142,7 +143,7 @@ export default function Toolbar() {
             </>
           ) : null}
         </p>
-        <div className="flex flex-wrap justify-end gap-3">
+        <DialogFooter>
           <Button
             ref={keepEditingRef}
             onClick={() => dialogRef.current?.close()}
@@ -176,7 +177,7 @@ export default function Toolbar() {
               Save and export
             </Button>
           ) : null}
-        </div>
+        </DialogFooter>
       </dialog>
     </header>
   );

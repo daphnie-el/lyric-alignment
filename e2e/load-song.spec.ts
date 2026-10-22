@@ -118,7 +118,7 @@ test("X, Escape, focus containment, and modal shortcuts preserve the old song", 
   await expect(page.getByRole("heading", { name: "Replace current song?" })).toBeFocused();
   await close(page).focus();
   await page.keyboard.press("Shift+Tab");
-  await expect(page.getByRole("button", { name: "Choose another source" })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(close(page)).toBeFocused();
   await page.getByRole("heading", { name: "Replace current song?" }).focus();

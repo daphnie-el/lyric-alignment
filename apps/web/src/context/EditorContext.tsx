@@ -11,11 +11,13 @@ import {
 import { toast } from "sonner";
 import { ApiError, api } from "../api";
 import { downloadTrackLrc } from "../utils/helpers";
+import { splitLyricText } from "../utils/splitLyric";
 import {
   moveSegments,
   normalizeSegments,
   placeSegment,
   stampSegment,
+  timingError,
 } from "../utils/timing";
 import {
   DEFAULT_DURATION_MS,
@@ -100,6 +102,14 @@ type EditorAction =
   | { type: "removeSegment"; lineId: string }
   | { type: "removeSegments"; lineIds: string[] }
   | { type: "addLine"; id: string; text: string }
+  | { type: "mergeWithNext"; lineId: string }
+  | {
+      type: "splitLine";
+      lineId: string;
+      newId: string;
+      afterWord: number;
+      splitMs?: number;
+    }
   | { type: "addLines"; lines: { id: string; text: string }[] }
   | { type: "updateSegment"; payload: updateSegmentPayload }
   | {
@@ -185,7 +195,10 @@ function commitSegments(
 }
 
 export function reducer(state: EditorState, action: EditorAction): EditorState {
-  if (state.importing && !["importStored", "importFailure", "importReady"].includes(action.type))
+  if (
+    state.importing &&
+    !["importStored", "importFailure", "importReady"].includes(action.type)
+  )
     return state;
   // Guard every editing path, including keyboard and queued interaction events.
   if (state.saving && !["loadSuccess", "saveFailure"].includes(action.type))
@@ -201,16 +214,31 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
       return { ...state, importing: true, importError: null };
     case "importStored":
       return {
-        ...reducer({ ...state, importing: false }, { type: "loadSuccess", payload: action.payload }),
+        ...reducer(
+          { ...state, importing: false },
+          { type: "loadSuccess", payload: action.payload },
+        ),
         importing: true,
         importPlaybackPending: true,
       };
     case "importFailure":
       if (action.trackId && action.trackId !== state.track?.id) return state;
-      return { ...state, importing: false, importPlaybackPending: false, importError: action.error };
+      return {
+        ...state,
+        importing: false,
+        importPlaybackPending: false,
+        importError: action.error,
+      };
     case "importReady":
-      if (!state.importPlaybackPending || action.trackId !== state.track?.id) return state;
-      return { ...state, importing: false, importPlaybackPending: false, importDialogOpen: false, importError: null };
+      if (!state.importPlaybackPending || action.trackId !== state.track?.id)
+        return state;
+      return {
+        ...state,
+        importing: false,
+        importPlaybackPending: false,
+        importDialogOpen: false,
+        importError: null,
+      };
     case "stampLine": {
       const track = state.track;
       if (!track || state.status !== "ready" || state.interacting) return state;
@@ -504,6 +532,134 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
         future: [],
       };
     }
+    case "splitLine": {
+      const track = state.track;
+      if (
+        !track ||
+        state.status !== "ready" ||
+        state.interacting ||
+        state.selectedLineId !== action.lineId ||
+        state.selectedTimelineIds.length > 1 ||
+        !action.newId.trim() ||
+        track.lines.some((line) => line.id === action.newId)
+      )
+        return state;
+      const position = track.lines.findIndex((line) => line.id === action.lineId);
+      const original = track.lines[position];
+      if (!original) return state;
+      const parts = splitLyricText(original.text, action.afterWord);
+      if (!parts) return state;
+      const segment = track.segments.find((item) => item.line_id === original.id);
+      const splitMs = action.splitMs;
+      if (
+        segment && (
+          splitMs === undefined || !Number.isSafeInteger(splitMs) ||
+          splitMs <= segment.start_ms || splitMs >= segment.end_ms
+        )
+      )
+        return { ...state, timingError: "Split time must be strictly between Start and End." };
+      const lines = [
+        ...track.lines.slice(0, position),
+        { ...original, text: parts[0] },
+        { id: action.newId, index: original.index + 1, text: parts[1] },
+        ...track.lines.slice(position + 1).map((line, offset) => ({
+          ...line,
+          index: original.index + 2 + offset,
+        })),
+      ];
+      const segments = segment && splitMs !== undefined
+        ? track.segments.flatMap((item) =>
+            item.line_id === original.id
+              ? [
+                  { ...item, end_ms: splitMs },
+                  { line_id: action.newId, start_ms: splitMs, end_ms: item.end_ms },
+                ]
+              : [item],
+          )
+        : track.segments;
+      return {
+        ...state,
+        track: { ...track, lines, segments },
+        selectedLineId: original.id,
+        selectedTimelineIds: segment ? [original.id] : [],
+        timingError: null,
+        past: [...state.past, historyEntry(track)].slice(-HISTORY_LIMIT),
+        future: [],
+      };
+    }
+    case "mergeWithNext": {
+      const track = state.track;
+      if (
+        !track ||
+        state.status !== "ready" ||
+        state.interacting ||
+        state.selectedLineId !== action.lineId ||
+        state.selectedTimelineIds.length > 1
+      )
+        return state;
+      const index = track.lines.findIndex((line) => line.id === action.lineId);
+      const selected = track.lines[index];
+      const incoming = track.lines[index + 1];
+      if (!selected || !incoming) return state;
+      const selectedSegment = track.segments.find(
+        (segment) => segment.line_id === selected.id,
+      );
+      const incomingSegment = track.segments.find(
+        (segment) => segment.line_id === incoming.id,
+      );
+      const mergedSegment: Segment | undefined = selectedSegment
+        ? {
+            ...selectedSegment,
+            end_ms: incomingSegment?.end_ms ?? selectedSegment.end_ms,
+          }
+        : incomingSegment
+          ? { ...incomingSegment, line_id: selected.id }
+          : undefined;
+      if (mergedSegment) {
+        const error = timingError(mergedSegment, track.durationMs);
+        if (error) return { ...state, timingError: error };
+        if (
+          track.segments.some(
+            (segment) =>
+              segment.line_id !== selected.id &&
+              segment.line_id !== incoming.id &&
+              segment.start_ms < mergedSegment.end_ms &&
+              segment.end_ms > mergedSegment.start_ms,
+          )
+        )
+          return {
+            ...state,
+            timingError: "Merged lyric would overlap another line.",
+          };
+      }
+      const lines = track.lines
+        .filter((line) => line.id !== incoming.id)
+        .map((line) =>
+          line.id === selected.id
+            ? {
+                ...line,
+                text: `${selected.text.trimEnd()}, ${incoming.text.trimStart()}`,
+              }
+            : line,
+        );
+      // Replace timing in place so unrelated segments retain their values and order.
+      const segments = track.segments.flatMap((segment) => {
+        if (segment.line_id === selected.id)
+          return mergedSegment ? [mergedSegment] : [];
+        if (segment.line_id === incoming.id)
+          return !selectedSegment && mergedSegment ? [mergedSegment] : [];
+        return [segment];
+      });
+      return {
+        ...state,
+        track: { ...track, lines, segments },
+        selectedLineId: selected.id,
+        selectedTimelineIds: mergedSegment ? [selected.id] : [],
+        timingError: null,
+        past: [...state.past, historyEntry(track)].slice(-HISTORY_LIMIT),
+        future: [],
+      };
+    }
     case "editLine": {
       if (!state.track) return state;
       const track = state.track;
@@ -550,7 +706,8 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
 }
 
 const StateContext = createContext<
-  (EditorState & { unsavedChanges: boolean; editingLocked: boolean }) | undefined
+  | (EditorState & { unsavedChanges: boolean; editingLocked: boolean })
+  | undefined
 >(undefined);
 const DispatchContext = createContext<Dispatch<EditorAction> | undefined>(
   undefined,
@@ -568,9 +725,12 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
           if (
-            error instanceof ApiError && error.status === 404 &&
-            error.body && typeof error.body === "object" &&
-            "error" in error.body && error.body.error === "no_current_track"
+            error instanceof ApiError &&
+            error.status === 404 &&
+            error.body &&
+            typeof error.body === "object" &&
+            "error" in error.body &&
+            error.body.error === "no_current_track"
           ) {
             dispatch({ type: "loadEmpty" });
             return;
@@ -593,7 +753,11 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     [state.track, state.savedContent],
   );
   const contextState = useMemo(
-    () => ({ ...state, unsavedChanges, editingLocked: state.saving || state.importing }),
+    () => ({
+      ...state,
+      unsavedChanges,
+      editingLocked: state.saving || state.importing,
+    }),
     [state, unsavedChanges],
   );
   useEffect(() => {
