@@ -38,6 +38,7 @@ export default function Timeline() {
   const [preview, setPreview] = useState<Segment | null>(null);
   const [dragLineIds, setDragLineIds] = useState<string[]>([]);
   const canvas = useRef<HTMLDivElement | null>(null);
+  const scrollContainer = useRef<HTMLDivElement>(null);
   const grabOffset = useRef(0);
   const interacting = useRef(false);
   const seekGesture = useRef<{ x: number; y: number } | null>(null);
@@ -333,6 +334,7 @@ export default function Timeline() {
       </div>
       <div
         className="timeline-scroll shrink-0"
+        ref={scrollContainer}
         aria-label="Scrollable timeline"
         tabIndex={0}
       >
@@ -401,7 +403,11 @@ export default function Timeline() {
             </div>
           ))}
           {track ? (
-            <TimelinePlayhead scale={scale} durationMs={duration} />
+            <TimelinePlayhead
+              scale={scale}
+              durationMs={duration}
+              scrollContainer={scrollContainer}
+            />
           ) : null}
         </div>
       </div>

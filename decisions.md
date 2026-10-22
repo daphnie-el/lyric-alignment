@@ -163,3 +163,10 @@ This supersedes Stage 3's provisional three-second duration and consecutive-stam
 - Reuse `downloadLrc` and `segmentsToLrc`, preserving chronological timestamp ordering, centisecond formatting, and UTF-8 lyric text. Trim the track title and replace filesystem-invalid characters with underscores for the filename; fall back to `lyrics.lrc` for an empty title.
 - Keep the existing backend and public data types unchanged. Export does not save or alter editor contents.
 - Keep the dialog's initial focus on Keep editing, keyboard focus containment, Escape dismissal, focus restoration, and editor shortcut isolation. Disable export during saving and active timeline interactions; cancellation performs neither saving nor downloading.
+
+## Timeline playhead visibility
+
+- The user chose automatic horizontal scrolling on playback, seeking, zoom, and viewport resizing, while allowing manual browsing until the next update.
+- Keep the playback subscription in `TimelinePlayhead` and pass a ref to its scroll container. Adjust only `scrollLeft`, only when needed, with an 8 px margin and no animation; observe resizing without listening to manual scroll events. This preserves focus, page position, and editor state without rerendering blocks on playback ticks.
+- Add 14 px of trailing canvas padding so the end marker remains visible without changing timestamp coordinates. No API or persisted data changes.
+- Verification: the playback/timeline run passed 38 of 40 tests; both failures reference the existing commented-out playback slider. The new scroll tests pass. Typecheck, lint, production build, and whitespace checks pass.

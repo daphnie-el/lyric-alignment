@@ -35,6 +35,100 @@ async function playheadX(page: Page) {
     );
 }
 
+async function expectPlayheadVisible(page: Page) {
+  await expect.poll(() => page.getByTestId("timeline-playhead").evaluate((head) => {
+    const container = head.closest(".timeline-scroll")!;
+    const bounds = container.getBoundingClientRect();
+    const marker = head.getBoundingClientRect();
+    const left = bounds.left + container.clientLeft;
+    return marker.left >= left - 1 &&
+      marker.right <= left + container.clientWidth + 1;
+  })).toBe(true);
+}
+
+test("playhead follows seeking, zoom and resizing without changing editor state", async ({ page }) => {
+  await page.setViewportSize({ width: 1200, height: 1000 });
+  await load(page);
+  const audio = page.locator("audio");
+  const scroller = page.getByLabel("Scrollable timeline");
+  await page.getByRole("button", { name: "Move Playback lyric first", exact: true }).click();
+  await expectPlayheadVisible(page);
+  await audio.evaluate((element: HTMLAudioElement) => { element.currentTime = 10; });
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  await expectPlayheadVisible(page);
+  await expect.poll(() => scroller.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+
+  const originalScroll = await scroller.evaluate((element) => element.scrollLeft);
+  await audio.evaluate((element: HTMLAudioElement) => { element.currentTime = 9.9; });
+  await expect(page.getByLabel("Current playback position")).toHaveText("0:09.900");
+  expect(await scroller.evaluate((element) => element.scrollLeft)).toBe(originalScroll);
+
+  const pageScroll = await page.evaluate(() => window.scrollY);
+  await page.setViewportSize({ width: 900, height: 1000 });
+  await expectPlayheadVisible(page);
+  await audio.evaluate((element: HTMLAudioElement) => { element.currentTime = element.duration; });
+  await expect(page.getByLabel("Current playback position")).toHaveText("0:12.500");
+  await expectPlayheadVisible(page);
+  // Include the six-pixel right extent of the marker's triangular cap.
+  expect(await scroller.evaluate((element) => element.scrollLeft + element.clientWidth)).toBeGreaterThanOrEqual(2006);
+  await audio.evaluate((element: HTMLAudioElement) => { element.currentTime = 0; });
+  await expect(page.getByLabel("Current playback position")).toHaveText("0:00.000");
+  await expectPlayheadVisible(page);
+  expect(await scroller.evaluate((element) => element.scrollLeft)).toBe(0);
+  expect(await page.evaluate(() => window.scrollY)).toBe(pageScroll);
+  expect(await audio.evaluate((element: HTMLAudioElement) => element.paused)).toBe(true);
+  await expect(page.getByTestId("segment-first")).toHaveClass(/timeline-selected/);
+  await expect(page.getByRole("button", { name: "Save alignment", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeDisabled();
+
+  const block = page.getByRole("button", { name: "Move Playback lyric first", exact: true });
+  await block.focus();
+  await block.press("ArrowRight");
+  await audio.evaluate((element: HTMLAudioElement) => { element.currentTime = 11; });
+  await expect(page.getByLabel("Current playback position")).toHaveText("0:11.000");
+  await expectPlayheadVisible(page);
+  await expect(block).toBeFocused();
+  await expect(page.getByRole("button", { name: "Save alignment", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeEnabled();
+});
+
+test("manual scrolling stays until the next seek or playback update", async ({ page }) => {
+  await page.setViewportSize({ width: 1200, height: 1000 });
+  await load(page);
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  const scroller = page.getByLabel("Scrollable timeline");
+  const audio = page.locator("audio");
+  await scroller.evaluate((element) => { element.scrollLeft = 500; });
+  await page.waitForTimeout(150);
+  expect(await scroller.evaluate((element) => element.scrollLeft)).toBe(500);
+  // Zoom must restore visibility even when zero milliseconds still maps to zero pixels.
+  await page.getByRole("button", { name: "Zoom out" }).click();
+  await expectPlayheadVisible(page);
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  await scroller.evaluate((element) => { element.scrollLeft = 500; });
+  await audio.evaluate((element: HTMLAudioElement) => { element.currentTime = 0.1; });
+  await expect(page.getByLabel("Current playback position")).toHaveText("0:00.100");
+  await expectPlayheadVisible(page);
+
+  // Start just inside the viewport's right edge and cross it through real playback.
+  const edgeTime = await scroller.evaluate((element) => (element.clientWidth - 30) / 160);
+  await audio.evaluate(async (element: HTMLAudioElement, time) => {
+    const seeked = new Promise<void>((resolve) => {
+      element.addEventListener("seeked", () => resolve(), { once: true });
+    });
+    element.currentTime = time;
+    await seeked;
+    await element.play();
+  }, edgeTime);
+  const before = await scroller.evaluate((element) => element.scrollLeft);
+  await expect.poll(() => scroller.evaluate((element) => element.scrollLeft)).toBeGreaterThan(before + 20);
+  await audio.evaluate((element: HTMLAudioElement) => element.pause());
+  await expectPlayheadVisible(page);
+  await expect(page.getByRole("button", { name: "Save alignment", exact: true })).toBeDisabled();
+});
+
 test("native playback, pause, seek, and end synchronize the shared position", async ({ page }) => {
   await load(page);
   const audio = page.locator("audio");

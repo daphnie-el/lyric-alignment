@@ -422,6 +422,7 @@ audio {
   }
   .timeline-track {
     position: relative;
+    padding-right: 14px;
     min-height: 230px;
     box-sizing: content-box;
   }
