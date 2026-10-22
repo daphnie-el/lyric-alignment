@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { mockAudio } from './helpers/audio';
 
 const track = {
   id: 'save-track', title: 'Save test', artist: 'Artist', duration_seconds: 20,
@@ -9,7 +10,7 @@ const track = {
 const save = (page: Page) => page.getByRole('button', { name: 'Save alignment', exact: true });
 const move = (page: Page) => page.getByRole('button', { name: 'Move Lyric a', exact: true });
 async function load(page: Page, data = track) {
-  await page.route('**/test-audio.mp3', route => route.fulfill({ status: 204 }));
+  await mockAudio(page, '/test-audio.mp3', 20);
   await page.route('**/api/v1/track', route => route.fulfill({ json: data }));
   await page.goto('/');
   await expect(page.getByRole('heading', { name: data.title, exact: true })).toBeVisible();
@@ -40,7 +41,7 @@ test('saves latest inspector edit, resets selection and history, retains returne
   await save(page).click();
   await expect(save(page)).toBeDisabled();
   await expect(page.getByText('Changes saved successfully', { exact: true })).toHaveCount(1);
-  expect(requests[0]).toEqual({ version: 3, lines: track.lines, segments: [{ line_id: 'a', start_ms: 100, end_ms: 4000 }] });
+  expect(requests[0]).toEqual({ track_id: track.id, version: 3, lines: track.lines, segments: [{ line_id: 'a', start_ms: 100, end_ms: 4000 }] });
   await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Redo', exact: true })).toBeDisabled();
   await expect(page.getByText('Select a lyric line to view its timing.')).toBeVisible();
@@ -67,7 +68,7 @@ test('saving all removed placements sends an empty array', async ({ page }) => {
   await page.getByRole('button', { name: 'Remove Segment', exact: true }).click();
   await save(page).click();
   await expect(save(page)).toBeDisabled();
-  expect(body).toEqual({ version: 3, lines: track.lines, segments: [] });
+  expect(body).toEqual({ track_id: track.id, version: 3, lines: track.lines, segments: [] });
   await expect(page.getByText('Changes saved successfully', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Close toast' })).toBeVisible();
   await page.clock.fastForward(14_000);

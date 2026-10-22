@@ -28,7 +28,7 @@ const sensors = [
 function LoadStatus() {
   const { status, error } = useEditorState();
   const dispatch = useEditorDispatch();
-  if (status === "ready") return null;
+  if (status === "ready" || status === "empty") return null;
   return (
     <div className="border-b border(--color-border) px-5 py-3">
       {status === "loading" ? (

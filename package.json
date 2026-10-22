@@ -15,6 +15,7 @@
     "lint": "eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix --max-warnings=0",
     "test": "playwright test",
+    "test:api": "node --disable-warning=ExperimentalWarning --test apps/api/test/*.test.js",
     "test:ui": "playwright test --ui",
     "postinstall": "node scripts/postinstall.mjs"
   },

@@ -1,9 +1,18 @@
 import { createReadStream, statSync } from 'node:fs';
-import { join, normalize, extname } from 'node:path';
+import { resolve, sep, extname } from 'node:path';
 import { PUBLIC_DIR } from './config.js';
 import { notFound } from './http.js';
+import { uploadedFilePath, UPLOAD_PREFIX } from './uploads.js';
 
-const TYPES = { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg' };
+const TYPES = { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.m4a': 'audio/mp4' };
+
+function pipeAudio(file, res, options) {
+  const stream = createReadStream(file, options);
+  // Replacement can unlink a previous upload between stat and open.
+  stream.on('error', () => res.destroy());
+  res.on('close', () => stream.destroy());
+  return stream.pipe(res);
+}
 
 /**
  * Serves the fixture audio. Unauthenticated on purpose: an <audio> element
@@ -12,16 +21,18 @@ const TYPES = { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg' }
  * Range requests are honoured so seeking around the file actually works.
  */
 export function serveAudio(req, res, relPath) {
-  const safe = normalize(relPath).replace(/^(\.\.[/\\])+/, '');
-  const file = join(PUBLIC_DIR, 'audio', safe);
-  if (!file.startsWith(join(PUBLIC_DIR, 'audio'))) throw notFound('no such asset');
+  const root = resolve(PUBLIC_DIR, 'audio');
+  const file = relPath.startsWith('uploads/')
+    ? uploadedFilePath(`${UPLOAD_PREFIX}${relPath.slice('uploads/'.length)}`)
+    : resolve(root, relPath);
+  if (!file || (!relPath.startsWith('uploads/') && !file.startsWith(root + sep))) throw notFound('no such asset');
 
   let stat;
   try {
     stat = statSync(file);
     if (!stat.isFile()) throw new Error('not a file');
   } catch {
-    throw notFound(`no such audio asset: ${safe}`);
+    throw notFound('no such audio asset');
   }
 
   const type = TYPES[extname(file)] || 'application/octet-stream';
@@ -30,9 +41,10 @@ export function serveAudio(req, res, relPath) {
   if (range) {
     const m = /^bytes=(\d*)-(\d*)$/.exec(range.trim());
     if (m) {
-      const start = m[1] ? Number(m[1]) : 0;
-      const end = m[2] ? Math.min(Number(m[2]), stat.size - 1) : stat.size - 1;
-      if (start > end || start >= stat.size) {
+      const suffix = !m[1] && !!m[2];
+      const start = suffix ? Math.max(0, stat.size - Number(m[2])) : Number(m[1] || 0);
+      const end = !suffix && m[2] ? Math.min(Number(m[2]), stat.size - 1) : stat.size - 1;
+      if ((!m[1] && !m[2]) || !Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end || start >= stat.size) {
         res.writeHead(416, { 'content-range': `bytes */${stat.size}` });
         return res.end();
       }
@@ -43,7 +55,7 @@ export function serveAudio(req, res, relPath) {
         'accept-ranges': 'bytes',
         'cache-control': 'public, max-age=3600',
       });
-      return createReadStream(file, { start, end }).pipe(res);
+      return pipeAudio(file, res, { start, end });
     }
   }
 
@@ -53,5 +65,5 @@ export function serveAudio(req, res, relPath) {
     'accept-ranges': 'bytes',
     'cache-control': 'public, max-age=3600',
   });
-  createReadStream(file).pipe(res);
+  pipeAudio(file, res);
 }

@@ -1,5 +1,5 @@
-import { send, notFound, readJsonBody, HttpError } from '../http.js';
-import { getTrack, currentState, saveAlignment, TRACK_ID } from '../store.js';
+import { send, readJsonBody, HttpError } from '../http.js';
+import { getTrack, currentState, saveAlignment } from '../store.js';
 import { parsePutBody } from '../validate.js';
 
 /**
@@ -12,13 +12,16 @@ import { parsePutBody } from '../validate.js';
  * is a good idea is the client's call to make, not this server's.
  */
 export async function putAlignment(req, res) {
-  const track = getTrack(TRACK_ID);
-  if (!track) throw notFound('no track is seeded; run `pnpm reset` in the repo root');
-
   const raw = await readJsonBody(req);
   const { version, lines, segments } = parsePutBody(raw);
+  // Read after the await: a replacement may have committed while reading input.
+  const track = getTrack();
+  if (!track) throw new HttpError(404, { error: 'no_current_track', hint: 'Load a song first.' });
+  if (raw.track_id !== String(track.id)) {
+    throw new HttpError(409, { error: 'track_conflict', hint: 'The current song changed. Reload before saving.', track_id: String(track.id) });
+  }
 
-  const state = currentState(TRACK_ID);
+  const state = currentState(track.id);
   if (version !== state.version) {
     // Carries the server's current state, so a client that has fallen behind
     // can reconcile without a second round trip.
@@ -32,8 +35,8 @@ export async function putAlignment(req, res) {
     });
   }
 
-  const newVersion = saveAlignment(TRACK_ID, lines, segments);
-  const saved = currentState(TRACK_ID);
+  const newVersion = saveAlignment(track.id, lines, segments);
+  const saved = currentState(track.id);
 
   send(res, 200, { version: newVersion, lines: saved.lines, alignment: saved.alignment });
 }

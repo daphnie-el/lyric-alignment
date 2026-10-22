@@ -1126,6 +1126,7 @@ test("group keyboard movement saves all endpoints without persisting selection",
     page.getByRole("button", { name: "Save alignment", exact: true }),
   ).toBeDisabled();
   expect(body).toEqual({
+    track_id: track.id,
     version: 0,
     lines: track.lines,
     segments: [s("a", 1100, 3100), s("b", 6000, 8000), s("c", 11100, 13100)],

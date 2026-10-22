@@ -164,9 +164,42 @@ This supersedes Stage 3's provisional three-second duration and consecutive-stam
 - Keep the existing backend and public data types unchanged. Export does not save or alter editor contents.
 - Keep the dialog's initial focus on Keep editing, keyboard focus containment, Escape dismissal, focus restoration, and editor shortcut isolation. Disable export during saving and active timeline interactions; cancellation performs neither saving nor downloading.
 
-## Timeline playhead visibility
+## 8. Timeline playhead visibility
 
 - The user chose automatic horizontal scrolling on playback, seeking, zoom, and viewport resizing, while allowing manual browsing until the next update.
 - Keep the playback subscription in `TimelinePlayhead` and pass a ref to its scroll container. Adjust only `scrollLeft`, only when needed, with an 8 px margin and no animation; observe resizing without listening to manual scroll events. This preserves focus, page position, and editor state without rerendering blocks on playback ticks.
 - Add 14 px of trailing canvas padding so the end marker remains visible without changing timestamp coordinates. No API or persisted data changes.
 - Verification: the playback/timeline run passed 38 of 40 tests; both failures reference the existing commented-out playback slider. The new scroll tests pass. Typecheck, lint, production build, and whitespace checks pass.
+
+## 9. Load Song — Phase 1: track API and storage
+
+### User decisions
+
+- Support a device file or direct audio URL, retaining one current song across refreshes. Loading a replacement removes the previous song, lyrics, and alignment; there is no track library.
+- Store URL sources as links without downloading them. New songs start with `lines: []`, `alignment: null`, and `version: 0`.
+- Deliver API/storage, import UI, and empty states as separate approval phases. Phase 1 leaves Load song disabled pending approval for Phase 2.
+- Phase 2 must warn before replacing any song and offer Continue or Export and continue, plus a top-right X. LRC export includes timed lyrics from current edits, excluding audio and untimed lines.
+- Preserve the old song until persistence succeeds; reset selection, history, playback position, and the lyric draft for the new song. Announce success only when the persisted source loads in the player.
+
+### Implementation decisions and tradeoffs
+
+- Add authenticated `POST /api/v1/track`. URL requests use JSON `{ audio_url, duration_seconds, title? }`; file requests use multipart fields `file`, `duration_seconds`, and optional `title`. Both return `201` with the existing TrackPayload shape. Unknown artist is empty; title falls back to the filename/URL path, then “Untitled song.”
+- Use Busboy for bounded streaming multipart parsing and disk backpressure. Files are limited to 100 MiB, fields to 1024 bytes, and filenames to server-generated UUIDs under `apps/api/data/uploads/`. `UPLOAD_DIR` can override this directory; it is ignored by git. No whole-song buffers or server audio decoding are used.
+- Validate MP3/WAV/Ogg/M4A extensions and basic format headers. Validate positive finite duration and title; HTTP(S) URLs cannot contain credentials. Direct URLs may lack a file extension. The server never fetches them; browser playback validation is deferred to Phase 2. Header checks cannot prove full-file decodability, and duration is supplied by the client.
+- Insert the replacement and cascade-delete the previous database state in one SQLite transaction, without schema changes or resetting existing data. Insert before deleting so each replacement gets a new numeric identity. Delete the previous generated audio file after commit; never delete bundled demo audio. Failed, malformed, oversized, or interrupted uploads remove their staged file and preserve the current song.
+- Require `track_id` alongside `version`, `lines`, and `segments` in alignment PUTs. The current client sends this field; stale track IDs receive `409 track_conflict`, and stale versions retain `409 version_conflict`. Empty lyric arrays are now valid. This is an intentional request-contract change for other API consumers.
+- `GET /api/v1/track` returns `404 no_current_track` when empty. Startup still seeds the demo by default and preserves an existing imported track. `SEED_ON_START=false` allows an empty workspace and isolated integration tests.
+- Uploaded audio uses the existing unauthenticated asset surface with range support, including suffix ranges, and M4A MIME support. Authentication remains required for track reads and writes.
+
+Phase 2: import dialog and playback
+
+### User decisions
+
+### Implementation decisions and tradeoffs
+
+- Keep the native import dialog outside the keyed playback session so it survives track replacement and can show playback errors. Contain keyboard focus, isolate editor shortcuts, restore focus to Load song, and allow X/Escape cancellation during audio checking. Disable dismissal after submission until the request or playback settles.
+- Probe with a temporary native audio element, without reading the entire file or decoding it into JavaScript memory. Validate format, size, URL scheme, duration, and browser playability; revoke object URLs and stop media requests on completion/cancellation. No added frontend dependency or playback-tick subscription.
+- Send files using FormData with the browser-generated multipart boundary; send URLs as JSON. Bound probing and initial player readiness to 30 seconds each, and persistence requests to two minutes. Block duplicate submissions and editor actions during persistence/readiness, including reducer and keyboard paths.
+- Listen for the stored player's `canplay` event before showing “Song loaded, please add lyrics to the lyrics sheet.” Show inline and toast errors with retry options. A post-commit playback failure retains the newly stored song; the old song has already been replaced. An interrupted response may leave server outcome uncertain, which the error message explains.
+- Native LRC download starts before replacement but cannot confirm the user saved the file. Disable Export and continue when no lyrics are timed. Native player errors also show an inline Retry playback action.
+- Empty-workspace messaging remains Phase 3. Preserve the pre-existing staged LyricsPane edit; Phase 2 only adds its import editing lock.

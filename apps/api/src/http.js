@@ -41,7 +41,8 @@ export function readJsonBody(req) {
       size += c.length;
       if (size > MAX_BODY_BYTES) {
         reject(new HttpError(413, { error: 'payload_too_large', hint: `request body must be under ${MAX_BODY_BYTES} bytes` }));
-        req.destroy();
+        // Drain input so the caller can still receive a useful 413 response.
+        chunks.length = 0;
         return;
       }
       chunks.push(c);

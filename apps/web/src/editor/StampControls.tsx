@@ -20,7 +20,7 @@ const interactiveSelector = [
 ].join(", ");
 
 export default function StampControls() {
-  const { track, selectedLineId, saving, interacting } = useEditorState();
+  const { track, selectedLineId, editingLocked: saving, interacting } = useEditorState();
   const ready = usePlaybackReady();
   const stamp = useStampLine();
   const target =

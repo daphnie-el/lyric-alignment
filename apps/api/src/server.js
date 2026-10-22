@@ -5,7 +5,7 @@ import { getDb } from './db.js';
 import { seed } from './seed.js';
 import { serveAudio } from './static.js';
 import { getIndex } from './routes/index.js';
-import { getTrackPayload } from './routes/track.js';
+import { getTrackPayload, postTrack } from './routes/track.js';
 import { putAlignment } from './routes/alignment.js';
 
 /**
@@ -16,13 +16,13 @@ import { putAlignment } from './routes/alignment.js';
  */
 const ROUTES = {
   '/api/v1': { GET: getIndex },
-  '/api/v1/track': { GET: getTrackPayload },
+  '/api/v1/track': { GET: getTrackPayload, POST: postTrack },
   '/api/v1/track/alignment': { PUT: putAlignment },
 };
 
 const CORS = {
   'access-control-allow-origin': '*',
-  'access-control-allow-methods': 'GET, PUT, OPTIONS',
+  'access-control-allow-methods': 'GET, POST, PUT, OPTIONS',
   'access-control-allow-headers': 'authorization, content-type',
   'access-control-max-age': '86400',
 };
@@ -90,11 +90,13 @@ const server = createServer((req, res) => {
 });
 
 getDb();
-const result = seed();
-if (!result.skipped) console.log(`seeded ${result.lines} lines`);
+if (process.env.SEED_ON_START !== 'false') {
+  const result = seed();
+  if (!result.skipped) console.log(`seeded ${result.lines} lines`);
+}
 
 server.listen(PORT, HOST, () => {
-  console.log(`api listening on http://localhost:${PORT}  (start at /api/v1)`);
+  console.log(`api listening on http://localhost:${server.address().port}  (start at /api/v1)`);
 });
 
 for (const sig of ['SIGINT', 'SIGTERM']) {

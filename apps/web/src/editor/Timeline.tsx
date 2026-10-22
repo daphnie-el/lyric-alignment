@@ -19,6 +19,7 @@ import { DEFAULT_DURATION_MS, Segment } from "../utils/types";
 import LyricBlock from "./LyricBlock";
 import StampControls from "./StampControls";
 import TimelinePlayhead from "./TimelinePlayhead";
+import TrackEmptyState from "./TrackEmptyState";
 
 export default function Timeline() {
   const {
@@ -28,6 +29,7 @@ export default function Timeline() {
     past,
     future,
     saving,
+    editingLocked,
     saveError,
     unsavedChanges,
     interacting: interactionActive,
@@ -44,7 +46,7 @@ export default function Timeline() {
   const seekGesture = useRef<{ x: number; y: number } | null>(null);
   const { ref, isDropTarget } = useDroppable({
     id: "timeline",
-    disabled: !track || saving,
+    disabled: !track || editingLocked,
   });
   function setInteracting(active: boolean) {
     if (active) seekGesture.current = null;
@@ -152,7 +154,7 @@ export default function Timeline() {
 
   useDragDropMonitor({
     onBeforeDragStart(event) {
-      if (saving) {
+      if (editingLocked) {
         event.preventDefault();
         return;
       }
@@ -283,7 +285,7 @@ export default function Timeline() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button
-            disabled={!track || saving || !past.length}
+            disabled={!track || editingLocked || !past.length}
             title="Undo (Ctrl+Z / ⌘Z)"
             aria-keyshortcuts="Control+z Meta+z"
             onClick={() => {
@@ -293,7 +295,7 @@ export default function Timeline() {
             Undo
           </Button>
           <Button
-            disabled={!track || saving || !future.length}
+            disabled={!track || editingLocked || !future.length}
             title="Redo (Ctrl+Y / Ctrl+Shift+Z / ⌘⇧Z)"
             aria-keyshortcuts="Control+y Control+Shift+z Meta+Shift+z"
             onClick={() => {
@@ -306,7 +308,7 @@ export default function Timeline() {
             color="primary"
             className=""
             loading={saving}
-            disabled={!track || !unsavedChanges || saving || interactionActive}
+            disabled={!track || !unsavedChanges || editingLocked || interactionActive}
             onClick={() => {
               if (!interacting.current) dispatch({ type: "saveStart" });
             }}
@@ -315,7 +317,7 @@ export default function Timeline() {
           </Button>
 
           <Button
-            disabled={scale <= 20}
+            disabled={!track || scale <= 20}
             aria-label="Zoom out"
             onClick={() => setScale((s) => s / 2)}
             title="Zoom timeline out"
@@ -323,7 +325,7 @@ export default function Timeline() {
             −
           </Button>
           <Button
-            disabled={scale >= 160}
+            disabled={!track || scale >= 160}
             aria-label="Zoom in"
             onClick={() => setScale((s) => s * 2)}
             title="Zoom timeline in"
@@ -332,138 +334,143 @@ export default function Timeline() {
           </Button>
         </div>
       </div>
-      <div
-        className="timeline-scroll shrink-0"
-        ref={scrollContainer}
-        aria-label="Scrollable timeline"
-        tabIndex={0}
-      >
+      {!track ? <TrackEmptyState /> : (
         <div
-          ref={(element) => {
-            canvas.current = element;
-            ref(element);
-          }}
-          data-testid="timeline-track"
-          onPointerDownCapture={beginSeek}
-          onPointerMoveCapture={cancelMovedSeek}
-          onPointerCancelCapture={() => {
-            seekGesture.current = null;
-          }}
-          onClick={seekFromClick}
-          className={`timeline-track ${isDropTarget ? "timeline-active" : ""}`}
-          style={{ width: Math.max(1, pixels(duration)) }}
+          className="timeline-scroll shrink-0"
+          ref={scrollContainer}
+          aria-label="Scrollable timeline"
+          tabIndex={0}
         >
-          <div className="timeline-ruler" aria-hidden="true">
-            {ticks.map((ms) => (
-              <span key={ms} style={{ left: pixels(ms) }}>
-                {formatTime(ms)}
+          <div
+            ref={(element) => {
+              canvas.current = element;
+              ref(element);
+            }}
+            data-testid="timeline-track"
+            onPointerDownCapture={beginSeek}
+            onPointerMoveCapture={cancelMovedSeek}
+            onPointerCancelCapture={() => {
+              seekGesture.current = null;
+            }}
+            onClick={seekFromClick}
+            className={`timeline-track ${isDropTarget ? "timeline-active" : ""}`}
+            style={{ width: Math.max(1, pixels(duration)) }}
+          >
+            <div className="timeline-ruler" aria-hidden="true">
+              {ticks.map((ms) => (
+                <span key={ms} style={{ left: pixels(ms) }}>
+                  {formatTime(ms)}
+                </span>
+              ))}
+              <span className="timeline-end" style={{ left: pixels(duration) }}>
+                {formatTime(duration)}
               </span>
-            ))}
-            <span className="timeline-end" style={{ left: pixels(duration) }}>
-              {formatTime(duration)}
-            </span>
-          </div>
-          {!displayed.length ? (
-            <p className="timeline-hint">
-              Drag a lyric here, or select a lyric and use Stamp current time to
-              place it at playback time.
-            </p>
-          ) : null}
-          {displayed.map((segment) => (
-            <LyricBlock
-              key={segment.line_id}
-              segment={
-                previewIds.has(segment.line_id)
-                  ? (track!.segments.find(
-                      (s) => s.line_id === segment.line_id,
-                    ) ?? segment)
-                  : segment
-              }
-              scale={scale}
-              text={
-                track?.lines.find((line) => line.id === segment.line_id)
-                  ?.text ?? ""
-              }
-              selected={selectedTimelineIds.includes(segment.line_id)}
-              onPreview={setPreview}
-              onInteractionChange={setInteracting}
-            />
-          ))}
-          {previewSegments.map((item) => (
-            <div
-              key={item.line_id}
-              className={`timeline-preview ${previewResult?.error ? "timeline-invalid" : ""}`}
-              style={{
-                left: pixels(item.start_ms),
-                width: pixels(item.end_ms - item.start_ms),
-              }}
-            >
-              {formatTime(item.start_ms, true)} –{" "}
-              {formatTime(item.end_ms, true)}
             </div>
-          ))}
-          {track ? (
-            <TimelinePlayhead
-              scale={scale}
-              durationMs={duration}
-              scrollContainer={scrollContainer}
-            />
-          ) : null}
+            {!displayed.length ? (
+              <p className="timeline-hint">
+                {track.lines.length
+                  ? "Drag a lyric here, or select a lyric and use Stamp current time to place it at playback time."
+                  : "Add lyrics to the lyric sheet and choose Add all lines. Then drag a lyric here or use Stamp current time."}
+              </p>
+            ) : null}
+            {displayed.map((segment) => (
+              <LyricBlock
+                key={segment.line_id}
+                segment={
+                  previewIds.has(segment.line_id)
+                    ? (track!.segments.find(
+                        (s) => s.line_id === segment.line_id,
+                      ) ?? segment)
+                    : segment
+                }
+                scale={scale}
+                text={
+                  track?.lines.find((line) => line.id === segment.line_id)
+                    ?.text ?? ""
+                }
+                selected={selectedTimelineIds.includes(segment.line_id)}
+                onPreview={setPreview}
+                onInteractionChange={setInteracting}
+              />
+            ))}
+            {previewSegments.map((item) => (
+              <div
+                key={item.line_id}
+                className={`timeline-preview ${previewResult?.error ? "timeline-invalid" : ""}`}
+                style={{
+                  left: pixels(item.start_ms),
+                  width: pixels(item.end_ms - item.start_ms),
+                }}
+              >
+                {formatTime(item.start_ms, true)} –{" "}
+                {formatTime(item.end_ms, true)}
+              </div>
+            ))}
+            {track ? (
+              <TimelinePlayhead
+                scale={scale}
+                durationMs={duration}
+                scrollContainer={scrollContainer}
+              />
+            ) : null}
+          </div>
         </div>
-      </div>
+      )}
       {/* <PlaybackSeek durationMs={duration} /> */}
       <StampControls />
-      <div className="border-t border-(--color-border) pt-3 text-xs text-(--color-text-muted)">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <span className="rounded-md bg-(--color-elevated) px-2 py-1 font-medium text-(--color-text)">
-            {track?.segments.length ?? 0} placed{" "}
-            {track?.segments.length === 1 ? "segment" : "segments"}
-          </span>
-          <span>Drag to move · Pull an edge to resize</span>
+      {track ? (
+        <div className="border-t border-(--color-border) pt-3 text-xs text-(--color-text-muted)">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span className="rounded-md bg-(--color-elevated) px-2 py-1 font-medium text-(--color-text)">
+              {track?.segments.length ?? 0} placed{" "}
+              {track?.segments.length === 1 ? "segment" : "segments"}
+            </span>
+            <span>Drag to move · Pull an edge to resize</span>
+          </div>
+          <details className="mt-3">
+            <summary className="w-fit cursor-pointer rounded-sm font-medium text-(--color-text) underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-(--color-primary)">
+              Timeline shortcuts
+            </summary>
+            <dl className="mb-0 mt-3 grid gap-x-6 gap-y-4 rounded-lg border border-(--color-border) bg-(--color-surface) p-4 sm:grid-cols-2">
+              <div>
+                <dt className="mb-1 font-medium text-(--color-text)">
+                  Fine adjustments
+                </dt>
+                <dd className="m-0 leading-relaxed">
+                  <kbd>←</kbd> <kbd>→</kbd> move a focused block by 100 ms. Hold{" "}
+                  <kbd>Shift</kbd> for 1 second.
+                </dd>
+              </div>
+              <div>
+                <dt className="mb-1 font-medium text-(--color-text)">
+                  Move a group
+                </dt>
+                <dd className="m-0 leading-relaxed">
+                  <kbd>Shift</kbd> + click to toggle lines, then drag any selected
+                  line. Spacing is preserved; other lines cannot overlap.
+                </dd>
+              </div>
+              <div>
+                <dt className="mb-1 font-medium text-(--color-text)">
+                  Clear selection
+                </dt>
+                <dd className="m-0 leading-relaxed">
+                  Press <kbd>Esc</kbd> to deselect all lines.
+                </dd>
+              </div>
+              <div>
+                <dt className="mb-1 font-medium text-(--color-text)">
+                  Seek playback
+                </dt>
+                <dd className="m-0 leading-relaxed">
+                  Click the ruler or empty timeline to seek and clear selection,
+                  or use the playback slider.
+                </dd>
+              </div>
+            </dl>
+          </details>
         </div>
-        <details className="mt-3">
-          <summary className="w-fit cursor-pointer rounded-sm font-medium text-(--color-text) underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-(--color-primary)">
-            Timeline shortcuts
-          </summary>
-          <dl className="mb-0 mt-3 grid gap-x-6 gap-y-4 rounded-lg border border-(--color-border) bg-(--color-surface) p-4 sm:grid-cols-2">
-            <div>
-              <dt className="mb-1 font-medium text-(--color-text)">
-                Fine adjustments
-              </dt>
-              <dd className="m-0 leading-relaxed">
-                <kbd>←</kbd> <kbd>→</kbd> move a focused block by 100 ms. Hold{" "}
-                <kbd>Shift</kbd> for 1 second.
-              </dd>
-            </div>
-            <div>
-              <dt className="mb-1 font-medium text-(--color-text)">
-                Move a group
-              </dt>
-              <dd className="m-0 leading-relaxed">
-                <kbd>Shift</kbd> + click to toggle lines, then drag any selected
-                line. Spacing is preserved; other lines cannot overlap.
-              </dd>
-            </div>
-            <div>
-              <dt className="mb-1 font-medium text-(--color-text)">
-                Clear selection
-              </dt>
-              <dd className="m-0 leading-relaxed">
-                Press <kbd>Esc</kbd> to deselect all lines.
-              </dd>
-            </div>
-            <div>
-              <dt className="mb-1 font-medium text-(--color-text)">
-                Seek playback
-              </dt>
-              <dd className="m-0 leading-relaxed">
-                Click the ruler or empty timeline to seek and clear selection,
-                or use the playback slider.
-              </dd>
-            </div>
-          </dl>
-        </details>
-      </div>
+      ) : null}
       {saveError ? (
         <p role="alert" className="input-error">
           {saveError}

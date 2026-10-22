@@ -194,7 +194,7 @@ test('loading and failed requests retain the shell and support retry with empty 
   shouldFail = false;
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(page.getByRole('heading', { name: track.title })).toBeVisible();
-  await expect(page.getByText('No lyrics yet. This track has no lines to select.')).toBeVisible();
+  await expect(page.getByText('No lyrics yet. Enter lyrics in the lyric sheet, one line per lyric, then choose Add all lines.')).toBeVisible();
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
 

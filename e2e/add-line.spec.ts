@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { mockAudio } from './helpers/audio';
 
 const track = {
   id: 'add-track', title: 'Add line test', artist: 'Artist', duration_seconds: 20,
@@ -13,7 +14,7 @@ const save = (page: Page) => page.getByRole('button', { name: 'Save alignment', 
 const lines = (page: Page) => page.getByRole('list', { name: 'Lyric lines' });
 
 async function load(page: Page, data = track) {
-  await page.route('**/test-audio.mp3', route => route.fulfill({ status: 204 }));
+  await mockAudio(page, '/test-audio.mp3', 20);
   await page.route('**/api/v1/track', route => route.fulfill({ json: data }));
   await page.goto('/');
   await expect(sheet(page)).toBeEnabled();

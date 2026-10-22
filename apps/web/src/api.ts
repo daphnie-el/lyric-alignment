@@ -24,7 +24,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     ...init,
     headers: {
       Authorization: `Bearer ${TOKEN}`,
-      ...(init.body != null ? { 'Content-Type': 'application/json' } : {}),
+      ...(init.body != null && !(init.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
       ...init.headers,
     },
   });

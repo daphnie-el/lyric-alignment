@@ -4,6 +4,7 @@ import { Button } from "../components/Button";
 import { useEditorDispatch, useEditorState } from "../context/EditorContext";
 import { formatTime } from "../utils/formatTime";
 import type { LyricLine, Segment } from "../utils/types";
+import TrackEmptyState from "./TrackEmptyState";
 
 function LyricItem({
   line,
@@ -17,7 +18,7 @@ function LyricItem({
   selected: boolean;
 }) {
   const dispatch = useEditorDispatch();
-  const { saving } = useEditorState();
+  const { editingLocked: saving } = useEditorState();
   const { ref, isDragging, isDropping } = useDraggable({
     disabled: saving,
     id: `lyric-${line.id}`,
@@ -66,7 +67,7 @@ function LyricItem({
 }
 
 export default function LyricsPane() {
-  const { track, selectedLineId, status, saving, interacting } =
+  const { track, selectedLineId, status, editingLocked: saving, interacting } =
     useEditorState();
   const dispatch = useEditorDispatch();
   const [draft, setDraft] = useState("");
@@ -91,6 +92,7 @@ export default function LyricsPane() {
           {track?.lines.length ?? 0} lines · {placed} placed
         </span>
       </div>
+      {!track ? <TrackEmptyState /> : null}
       <div className="flex flex-col gap-2">
         <label htmlFor="lyric-sheet" className="text-sm text-(--color-text)">
           Lyric sheet
@@ -158,8 +160,8 @@ export default function LyricsPane() {
           );
         })}
       </ol>
-      {status === "ready" && !track?.lines.length ? (
-        <p>No lyrics yet. This track has no lines to select.</p>
+      {status === "ready" && track && !track.lines.length ? (
+        <p>No lyrics yet. Enter lyrics in the lyric sheet, one line per lyric, then choose Add all lines.</p>
       ) : null}
     </section>
   );

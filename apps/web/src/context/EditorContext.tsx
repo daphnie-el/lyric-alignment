@@ -56,7 +56,7 @@ function historyEntry(track: EditorTrack): HistoryEntry {
 }
 
 type EditorState = {
-  status: "loading" | "ready" | "error";
+  status: "loading" | "empty" | "ready" | "error";
   track: EditorTrack | null;
   error: string | null;
   selectedLineId: string | null;
@@ -64,6 +64,10 @@ type EditorState = {
   retryCount: number;
   timingError: string | null;
   saving: boolean;
+  importing: boolean;
+  importDialogOpen: boolean;
+  importPlaybackPending: boolean;
+  importError: string | null;
   exportAfterSave: boolean;
   saveError: string | null;
   savedContent: string | null;
@@ -78,11 +82,16 @@ type updateSegmentPayload = {
 };
 
 type EditorAction =
+  | { type: "openImport" | "closeImport" | "importStart" }
+  | { type: "importStored"; payload: TrackPayload }
+  | { type: "importFailure"; error: string; trackId?: string }
+  | { type: "importReady"; trackId: string }
   | { type: "undo" | "redo" }
   | { type: "saveStart"; exportAfterSave?: boolean }
   | { type: "saveFailure"; error: string }
   | { type: "interaction"; active: boolean }
   | { type: "loadSuccess"; payload: TrackPayload }
+  | { type: "loadEmpty" }
   | { type: "loadFailure"; error: string }
   | { type: "retry" }
   | { type: "selectLine"; id: string | null }
@@ -126,6 +135,10 @@ export const initialState: EditorState = {
   retryCount: 0,
   timingError: null,
   saving: false,
+  importing: false,
+  importDialogOpen: false,
+  importPlaybackPending: false,
+  importError: null,
   exportAfterSave: false,
   saveError: null,
   savedContent: null,
@@ -172,10 +185,32 @@ function commitSegments(
 }
 
 export function reducer(state: EditorState, action: EditorAction): EditorState {
+  if (state.importing && !["importStored", "importFailure", "importReady"].includes(action.type))
+    return state;
   // Guard every editing path, including keyboard and queued interaction events.
   if (state.saving && !["loadSuccess", "saveFailure"].includes(action.type))
     return state;
   switch (action.type) {
+    case "openImport":
+      if (state.interacting || state.status === "loading") return state;
+      return { ...state, importDialogOpen: true, importError: null };
+    case "closeImport":
+      return { ...state, importDialogOpen: false, importError: null };
+    case "importStart":
+      if (!state.importDialogOpen || state.interacting) return state;
+      return { ...state, importing: true, importError: null };
+    case "importStored":
+      return {
+        ...reducer({ ...state, importing: false }, { type: "loadSuccess", payload: action.payload }),
+        importing: true,
+        importPlaybackPending: true,
+      };
+    case "importFailure":
+      if (action.trackId && action.trackId !== state.track?.id) return state;
+      return { ...state, importing: false, importPlaybackPending: false, importError: action.error };
+    case "importReady":
+      if (!state.importPlaybackPending || action.trackId !== state.track?.id) return state;
+      return { ...state, importing: false, importPlaybackPending: false, importDialogOpen: false, importError: null };
     case "stampLine": {
       const track = state.track;
       if (!track || state.status !== "ready" || state.interacting) return state;
@@ -302,6 +337,8 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
         },
       };
     }
+    case "loadEmpty":
+      return { ...initialState, status: "empty", retryCount: state.retryCount };
     case "loadFailure":
       return { ...state, status: "error", error: action.error };
     case "retry":
@@ -513,7 +550,7 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
 }
 
 const StateContext = createContext<
-  (EditorState & { unsavedChanges: boolean }) | undefined
+  (EditorState & { unsavedChanges: boolean; editingLocked: boolean }) | undefined
 >(undefined);
 const DispatchContext = createContext<Dispatch<EditorAction> | undefined>(
   undefined,
@@ -530,6 +567,14 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
+          if (
+            error instanceof ApiError && error.status === 404 &&
+            error.body && typeof error.body === "object" &&
+            "error" in error.body && error.body.error === "no_current_track"
+          ) {
+            dispatch({ type: "loadEmpty" });
+            return;
+          }
           dispatch({
             type: "loadFailure",
             error: error instanceof Error ? error.message : String(error),
@@ -548,18 +593,18 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     [state.track, state.savedContent],
   );
   const contextState = useMemo(
-    () => ({ ...state, unsavedChanges }),
+    () => ({ ...state, unsavedChanges, editingLocked: state.saving || state.importing }),
     [state, unsavedChanges],
   );
   useEffect(() => {
-    if (!unsavedChanges) return;
+    if (!unsavedChanges && !state.importing) return;
     function warnBeforeLeaving(event: BeforeUnloadEvent) {
       event.preventDefault();
       event.returnValue = "";
     }
     window.addEventListener("beforeunload", warnBeforeLeaving);
     return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
-  }, [unsavedChanges]);
+  }, [unsavedChanges, state.importing]);
 
   const { saving, track, exportAfterSave } = state;
 
@@ -567,6 +612,7 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     async (signal: AbortSignal) => {
       if (!track) return;
       const body: SaveAlignmentRequest = {
+        track_id: track.id,
         version: track.version,
         lines: track.lines,
         segments: track.segments,

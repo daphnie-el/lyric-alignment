@@ -252,7 +252,7 @@ test("saving stamped timings preserves sheet-based boundaries", async ({ page })
   await expect(segment(page, "chorus")).toHaveCount(0);
   release();
   await expect(page.getByText("Changes saved successfully", { exact: true })).toBeVisible();
-  expect(saved).toEqual({ version: 2, lines: track.lines, segments: [s("verse", 0, 14250)] });
+  expect(saved).toEqual({ track_id: track.id, version: 2, lines: track.lines, segments: [s("verse", 0, 14250)] });
   await seek(page, 5);
   await button(page).click();
   await expect(segment(page, "chorus")).toContainText("0:05.000 – 0:14.250");

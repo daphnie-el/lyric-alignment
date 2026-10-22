@@ -2,10 +2,30 @@ import { getDb } from './db.js';
 
 const segment = (row) => ({ line_id: String(row.line_id), start_ms: row.start_ms, end_ms: row.end_ms });
 
-export const TRACK_ID = 1;
+export function getTrack(trackId) {
+  return trackId === undefined
+    ? getDb().prepare('SELECT * FROM tracks ORDER BY id DESC LIMIT 1').get()
+    : getDb().prepare('SELECT * FROM tracks WHERE id = ?').get(trackId);
+}
 
-export function getTrack(trackId = TRACK_ID) {
-  return getDb().prepare('SELECT * FROM tracks WHERE id = ?').get(trackId);
+/** Insert before deleting so a replacement always gets a different identity. */
+export function replaceTrack({ title, duration_seconds, audio_url }) {
+  const db = getDb();
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const previous = getTrack();
+    const { lastInsertRowid } = db.prepare(
+      'INSERT INTO tracks (title, artist, duration_seconds, audio_url) VALUES (?, ?, ?, ?)',
+    ).run(title, '', duration_seconds, audio_url);
+    const id = Number(lastInsertRowid);
+    db.prepare('DELETE FROM tracks WHERE id != ?').run(id);
+    const track = getTrack(id);
+    db.exec('COMMIT');
+    return { track, previous };
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 }
 
 function latestAlignment(trackId) {
@@ -20,7 +40,7 @@ function latestAlignment(trackId) {
  * and the segments come from that saved version - PUT carries lines, so each
  * version owns its own lyric sheet.
  */
-export function currentState(trackId = TRACK_ID) {
+export function currentState(trackId = getTrack()?.id) {
   const db = getDb();
   const latest = latestAlignment(trackId);
 

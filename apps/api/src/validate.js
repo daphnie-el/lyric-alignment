@@ -22,11 +22,14 @@ function lineId(v, where) {
  * server. If you want them enforced, the code is yours - add them here.
  */
 export function parsePutBody(body) {
+  if (typeof body.track_id !== 'string' || !body.track_id.trim()) {
+    throw badRequest('invalid_track_id', 'send the string "track_id" from GET /api/v1/track');
+  }
   if (!isInt(body.version) || body.version < 0) {
     throw badRequest('invalid_version', 'send the integer "version" you last read from GET /api/v1/track; it is 0 before anything has been saved');
   }
-  if (!Array.isArray(body.lines) || body.lines.length === 0) {
-    throw badRequest('invalid_lines', '"lines" must be a non-empty array of { id, index, text }');
+  if (!Array.isArray(body.lines)) {
+    throw badRequest('invalid_lines', '"lines" must be an array of { id, index, text }');
   }
   if (!Array.isArray(body.segments)) {
     throw badRequest('invalid_segments', '"segments" must be an array of { line_id, start_ms, end_ms }');

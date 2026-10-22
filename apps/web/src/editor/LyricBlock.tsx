@@ -19,7 +19,7 @@ const LyricBlock = ({
   onInteractionChange: (active: boolean) => void;
 }) => {
   const dispatch = useEditorDispatch();
-  const { saving, interacting, selectedTimelineIds } = useEditorState();
+  const { editingLocked: saving, interacting, selectedTimelineIds } = useEditorState();
   const grouped = selectedTimelineIds.length > 1;
   // Use the block as the activator so the sensor applies its movement threshold.
   // A dedicated handle activates immediately and consumes ordinary clicks.

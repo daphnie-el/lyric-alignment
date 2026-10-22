@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { mockAudio } from './helpers/audio';
 
 const track = {
   id: 'boundary-track', title: 'Recovery test', artist: 'Artist',
@@ -27,7 +28,7 @@ test.beforeEach(async ({ page }) => {
     });
   });
   await page.route('**/api/v1/track', route => route.fulfill({ json: track }));
-  await page.route('**/boundary-audio.mp3', route => route.fulfill({ status: 204 }));
+  await mockAudio(page, '/boundary-audio.mp3', 20);
 });
 
 test('retry preserves unsaved timings and history, including after a repeated failure', async ({ page }) => {

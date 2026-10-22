@@ -4,6 +4,7 @@ apps/api/data/*.db
 apps/api/data/*.db-journal
 apps/api/data/*.db-wal
 apps/api/data/*.db-shm
+apps/api/data/uploads/
 test-results/
 playwright-report/
 .DS_Store
@@ -14,3 +15,4 @@ smoke.sh
 *.txt
 SPEC_CHECKLIST.md
 notes.md
+docs/

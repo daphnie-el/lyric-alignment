@@ -28,6 +28,7 @@ export type EditorTrack = Omit<
 };
 
 export type SaveAlignmentRequest = {
+  track_id: string;
   version: number;
   lines: LyricLine[];
   segments: Segment[];

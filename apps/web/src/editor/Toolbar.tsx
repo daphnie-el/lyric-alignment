@@ -5,7 +5,7 @@ import { useEditorDispatch, useEditorState } from "../context/EditorContext";
 import { formatTime } from "../utils/formatTime";
 import { downloadTrackLrc } from "../utils/helpers";
 export default function Toolbar() {
-  const { track, status, interacting, saving, unsavedChanges } =
+  const { track, status, interacting, saving, importing, unsavedChanges } =
     useEditorState();
   const dispatch = useEditorDispatch();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -19,7 +19,7 @@ export default function Toolbar() {
     track?.lines.filter((line) => timedIds.has(line.id)).length ?? 0;
   const untimed = total - timed;
   const exportDisabled =
-    status !== "ready" || !track || !timed || interacting || saving;
+    status !== "ready" || !track || !timed || interacting || saving || importing;
 
   function exportLrc() {
     if (exportDisabled || !track) return;
@@ -28,9 +28,10 @@ export default function Toolbar() {
   return (
     <header className="editor-toolbar flex flex-wrap items-center gap-5 border-b border-(--color-border) p-5">
       <Button
+        id="load-song"
         color="primary"
-        disabled
-        title="Audio import is coming later"
+        disabled={status === "loading" || saving || importing || interacting}
+        onClick={() => dispatch({ type: "openImport" })}
         className="font-semibold"
       >
         Load song
@@ -42,7 +43,7 @@ export default function Toolbar() {
         </h1>
         <p className="m-0 wrap-break-word text-sm">
           {track
-            ? `${track.artist} · ${formatTime(track.durationMs)}`
+            ? [track.artist, formatTime(track.durationMs)].filter(Boolean).join(" · ")
             : "Your workspace for timing lyrics"}
         </p>
       </div>

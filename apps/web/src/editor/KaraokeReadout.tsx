@@ -30,7 +30,7 @@ export default function KaraokeReadout() {
         Karaoke · selection preview
       </h2>
       {!track ? (
-        <p className="m-0">Place lyrics on the timeline to preview them here</p>
+        <p className="m-0">Load a song, then add and time lyrics to preview them here.</p>
       ) : null}
       <div
         aria-live="polite"

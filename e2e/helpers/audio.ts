@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 
-export async function mockAudio(page: Page, url: string, durationSeconds: number) {
+export function createWav(durationSeconds: number) {
   const sampleRate = 8000;
   const dataLength = Math.round(durationSeconds * sampleRate) * 2;
   const wav = Buffer.alloc(44 + dataLength);
@@ -16,7 +16,11 @@ export async function mockAudio(page: Page, url: string, durationSeconds: number
   wav.writeUInt16LE(16, 34);
   wav.write("data", 36);
   wav.writeUInt32LE(dataLength, 40);
+  return wav;
+}
 
+export async function mockAudio(page: Page, url: string, durationSeconds: number) {
+  const wav = createWav(durationSeconds);
   await page.route(`**${url}`, (route) => {
     const range = route.request().headers().range?.match(/^bytes=(\d+)-(\d*)$/);
     const start = range ? Number(range[1]) : 0;

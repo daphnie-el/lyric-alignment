@@ -3,6 +3,7 @@ import { EditorProvider } from "./context/EditorContext";
 import { PlaybackProvider } from "./context/PlaybackContext";
 import { EditorLayout } from "./editor/EditorLayout";
 import ErrorBoundary from "./ErrorBoundary";
+import SongImport from "./editor/LoadSongDialog";
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
         duration={15000}
       />
       <EditorProvider>
+        <SongImport />
         <PlaybackProvider>
           <ErrorBoundary>
             <EditorLayout />

@@ -9,7 +9,7 @@ import { Segment } from "../utils/types";
 export default function SelectionInspector() {
   const lyricInputId = useId();
   const lyricHintId = useId();
-  const { track, selectedLineId, selectedTimelineIds, saving } =
+  const { track, selectedLineId, selectedTimelineIds, editingLocked: saving } =
     useEditorState();
   const dispatch = useEditorDispatch();
   const line = track?.lines.find((item) => item.id === selectedLineId);
@@ -129,7 +129,7 @@ function TimingFields({
   durationMs: number;
 }) {
   const dispatch = useEditorDispatch();
-  const { saving } = useEditorState();
+  const { editingLocked: saving } = useEditorState();
   const [drafts, setDrafts] = useState({
     start_ms: segment ? formatTime(segment.start_ms) : "",
     end_ms: segment ? formatTime(segment.end_ms) : "",
