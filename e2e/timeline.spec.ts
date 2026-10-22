@@ -3,7 +3,7 @@ import {
   moveSegments,
   normalizeSegments,
   placeSegment,
-} from "../apps/web/src/editor/timing";
+} from "../apps/web/src/utils/timing";
 import { Segment } from "../apps/web/src/utils/types";
 import { mockAudio, waitForAudio } from "./helpers/audio";
 
@@ -860,10 +860,10 @@ test("bulk removal preserves references and history for no-ops and duplicate IDs
 }) => {
   await load(page);
   const result = await page.evaluate(async (payload) => {
-    const modulePath = "/src/editor/EditorContext.tsx";
+    const modulePath = "/src/context/EditorContext.tsx";
     const { reducer, initialState } = (await import(
       modulePath
-    )) as typeof import("../apps/web/src/editor/EditorContext");
+    )) as typeof import("../apps/web/src/context/EditorContext");
     const loaded = reducer(initialState, { type: "loadSuccess", payload });
     const removed = reducer(loaded, {
       type: "removeSegments",

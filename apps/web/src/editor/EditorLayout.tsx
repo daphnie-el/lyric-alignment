@@ -5,7 +5,7 @@ import {
   PointerSensor,
 } from "@dnd-kit/react";
 import { Button } from "../components/Button";
-import { useEditorDispatch, useEditorState } from "./EditorContext";
+import { useEditorDispatch, useEditorState } from "../context/EditorContext";
 import KaraokeReadout from "./KaraokeReadout";
 import LyricsPane from "./LyricsPane";
 import SelectionInspector from "./SelectionInspector";

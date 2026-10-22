@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 import { Button } from "../components/Button";
-import { useEditorState } from "./EditorContext";
-import { usePlaybackReady } from "./PlaybackContext";
-import { useStampLine } from "./useStampLine";
+import { useEditorState } from "../context/EditorContext";
+import { usePlaybackReady } from "../context/PlaybackContext";
+import { useStampLine } from "../utils/useStampLine";
 
 const interactiveSelector = [
   "button",

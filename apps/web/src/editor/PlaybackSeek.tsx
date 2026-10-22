@@ -1,5 +1,8 @@
-import { usePlaybackControls, usePlaybackState } from "./PlaybackContext";
-import { formatTime } from "./formatTime";
+import {
+  usePlaybackControls,
+  usePlaybackState,
+} from "../context/PlaybackContext";
+import { formatTime } from "../utils/formatTime";
 
 export default function PlaybackSeek({ durationMs }: { durationMs: number }) {
   const { positionMs, ready } = usePlaybackState();

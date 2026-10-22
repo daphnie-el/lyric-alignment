@@ -1,6 +1,6 @@
 import { useCallback } from "react";
-import { useEditorDispatch, useEditorState } from "./EditorContext";
-import { usePlaybackControls } from "./PlaybackContext";
+import { useEditorDispatch, useEditorState } from "../context/EditorContext";
+import { usePlaybackControls } from "../context/PlaybackContext";
 
 export function useStampLine() {
   const { saving, interacting } = useEditorState();

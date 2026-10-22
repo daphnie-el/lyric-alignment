@@ -1,8 +1,8 @@
 import {
   usePlaybackControls,
   usePlaybackState,
-} from "../editor/PlaybackContext";
-import { formatTime } from "../editor/formatTime";
+} from "../context/PlaybackContext";
+import { formatTime } from "../utils/formatTime";
 
 function PlaybackPosition() {
   const { positionMs, playing } = usePlaybackState();

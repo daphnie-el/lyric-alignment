@@ -1,10 +1,10 @@
 import { useId, useState } from "react";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
+import { useEditorDispatch, useEditorState } from "../context/EditorContext";
+import { formatTime } from "../utils/formatTime";
+import { timingError } from "../utils/timing";
 import { Segment } from "../utils/types";
-import { useEditorDispatch, useEditorState } from "./EditorContext";
-import { formatTime } from "./formatTime";
-import { timingError } from "./timing";
 
 export default function SelectionInspector() {
   const lyricInputId = useId();

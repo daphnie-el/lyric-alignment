@@ -11,15 +11,14 @@ import {
   type PointerEvent,
 } from "react";
 import { Button } from "../components/Button";
+import { useEditorDispatch, useEditorState } from "../context/EditorContext";
+import { usePlaybackControls } from "../context/PlaybackContext";
+import { formatTime } from "../utils/formatTime";
+import { moveSegments, placeSegment } from "../utils/timing";
 import { DEFAULT_DURATION_MS, Segment } from "../utils/types";
-import { useEditorDispatch, useEditorState } from "./EditorContext";
-import { formatTime } from "./formatTime";
 import LyricBlock from "./LyricBlock";
-import { usePlaybackControls } from "./PlaybackContext";
-import PlaybackSeek from "./PlaybackSeek";
 import StampControls from "./StampControls";
 import TimelinePlayhead from "./TimelinePlayhead";
-import { moveSegments, placeSegment } from "./timing";
 
 export default function Timeline() {
   const {
@@ -406,7 +405,7 @@ export default function Timeline() {
           ) : null}
         </div>
       </div>
-      <PlaybackSeek durationMs={duration} />
+      {/* <PlaybackSeek durationMs={duration} /> */}
       <StampControls />
       <div className="border-t border-(--color-border) pt-3 text-xs text-(--color-text-muted)">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">

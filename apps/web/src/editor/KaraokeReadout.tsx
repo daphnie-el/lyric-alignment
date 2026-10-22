@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import { useEditorState } from "./EditorContext";
-import { usePlaybackState } from "./PlaybackContext";
+import { useEditorState } from "../context/EditorContext";
+import { usePlaybackState } from "../context/PlaybackContext";
 export default function KaraokeReadout() {
   const { track } = useEditorState();
 

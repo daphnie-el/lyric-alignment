@@ -1,4 +1,4 @@
-import { usePlaybackState } from "./PlaybackContext";
+import { usePlaybackState } from "../context/PlaybackContext";
 
 export default function TimelinePlayhead({
   scale,

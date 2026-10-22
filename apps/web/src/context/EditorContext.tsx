@@ -12,6 +12,12 @@ import { toast } from "sonner";
 import { ApiError, api } from "../api";
 import { downloadTrackLrc } from "../utils/helpers";
 import {
+  moveSegments,
+  normalizeSegments,
+  placeSegment,
+  stampSegment,
+} from "../utils/timing";
+import {
   DEFAULT_DURATION_MS,
   EditorTrack,
   LyricLine,
@@ -20,12 +26,6 @@ import {
   Segment,
   TrackPayload,
 } from "../utils/types";
-import {
-  moveSegments,
-  normalizeSegments,
-  placeSegment,
-  stampSegment,
-} from "./timing";
 
 // Compare persisted values, independent of server array order or history depth.
 function contentSnapshot(lines: LyricLine[], segments: Segment[]): string {
@@ -219,7 +219,12 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
         exportAfterSave: action.exportAfterSave ?? false,
       };
     case "saveFailure":
-      return { ...state, saving: false, exportAfterSave: false, saveError: action.error };
+      return {
+        ...state,
+        saving: false,
+        exportAfterSave: false,
+        saveError: action.error,
+      };
     case "undo":
     case "redo": {
       if (!state.track) return state;
@@ -568,14 +573,11 @@ export function EditorProvider({ children }: { children: ReactNode }) {
       };
       let saved: SaveAlignmentResponse;
       try {
-        saved = await api<SaveAlignmentResponse>(
-          "/api/v1/track/alignment",
-          {
-            method: "PUT",
-            body: JSON.stringify(body),
-            signal,
-          },
-        );
+        saved = await api<SaveAlignmentResponse>("/api/v1/track/alignment", {
+          method: "PUT",
+          body: JSON.stringify(body),
+          signal,
+        });
       } catch (error: unknown) {
         if (signal.aborted) return;
         const message =
@@ -603,7 +605,9 @@ export function EditorProvider({ children }: { children: ReactNode }) {
             segments: saved.alignment?.segments ?? [],
           });
         } catch {
-          toast.error("Your changes were saved, but the download could not start. Try Export LRC again.");
+          toast.error(
+            "Your changes were saved, but the download could not start. Try Export LRC again.",
+          );
         }
       }
     },

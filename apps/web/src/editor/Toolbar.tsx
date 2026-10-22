@@ -1,9 +1,9 @@
 import { useRef } from "react";
 import AudioPlayer from "../components/AudioPlayer";
 import { Button } from "../components/Button";
+import { useEditorDispatch, useEditorState } from "../context/EditorContext";
+import { formatTime } from "../utils/formatTime";
 import { downloadTrackLrc } from "../utils/helpers";
-import { useEditorDispatch, useEditorState } from "./EditorContext";
-import { formatTime } from "./formatTime";
 export default function Toolbar() {
   const { track, status, interacting, saving, unsavedChanges } =
     useEditorState();

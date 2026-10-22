@@ -1,9 +1,9 @@
 import { useDraggable } from "@dnd-kit/react";
 import { useRef, useState } from "react";
 import { Button } from "../components/Button";
+import { useEditorDispatch, useEditorState } from "../context/EditorContext";
+import { formatTime } from "../utils/formatTime";
 import type { LyricLine, Segment } from "../utils/types";
-import { useEditorDispatch, useEditorState } from "./EditorContext";
-import { formatTime } from "./formatTime";
 
 function LyricItem({
   line,

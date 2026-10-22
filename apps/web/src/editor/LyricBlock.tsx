@@ -1,8 +1,8 @@
 import { useDraggable } from "@dnd-kit/react";
 import { useRef, type PointerEvent as ReactPointerEvent } from "react";
+import { useEditorDispatch, useEditorState } from "../context/EditorContext";
+import { formatTime } from "../utils/formatTime";
 import { Segment } from "../utils/types";
-import { useEditorDispatch, useEditorState } from "./EditorContext";
-import { formatTime } from "./formatTime";
 const LyricBlock = ({
   segment,
   text,
