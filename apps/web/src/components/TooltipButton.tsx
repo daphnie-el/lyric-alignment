@@ -11,15 +11,20 @@ import {
   useHover,
   useInteractions,
 } from "@floating-ui/react";
-import { useId, useState } from "react";
+import { forwardRef, useId, useState } from "react";
 import { Button, type ButtonProps } from "./Button";
 
-export function TooltipButton({
+type TooltipButtonProps = Omit<ButtonProps, "title"> & {
+  tooltip: string;
+  wrapperClassName?: string;
+};
+
+export const TooltipButton = forwardRef<HTMLButtonElement, TooltipButtonProps>(function TooltipButton({
   tooltip,
   wrapperClassName,
   "aria-describedby": describedBy,
   ...props
-}: Omit<ButtonProps, "title"> & { tooltip: string; wrapperClassName?: string }) {
+}, ref) {
   const [open, setOpen] = useState(false);
   const tooltipId = useId();
   const { refs: { setReference, setFloating }, floatingStyles, context } = useFloating({
@@ -51,6 +56,7 @@ export function TooltipButton({
       >
         <Button
           {...props}
+          ref={ref}
           aria-describedby={
             [describedBy, open ? tooltipId : undefined].filter(Boolean).join(" ") || undefined
           }
@@ -72,4 +78,4 @@ export function TooltipButton({
       ) : null}
     </>
   );
-}
+});

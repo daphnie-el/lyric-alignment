@@ -11,6 +11,7 @@ import LyricsPane from "./LyricsPane";
 import SelectionInspector from "./SelectionInspector";
 import Timeline from "./Timeline";
 import Toolbar from "./Toolbar";
+import EditorWalkthrough from "./EditorWalkthrough";
 
 const sensors = [
   PointerSensor.configure({
@@ -67,6 +68,7 @@ export function EditorLayout() {
           </div>
           <SelectionInspector />
         </div>
+        <EditorWalkthrough />
       </main>
       <DragOverlay dropAnimation={null}>
         {(source) => (

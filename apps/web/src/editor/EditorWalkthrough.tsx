@@ -13,7 +13,9 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { QuestionIcon } from "@phosphor-icons/react/dist/csr/Question";
 import { Button } from "../components/Button";
+import { TooltipButton } from "../components/TooltipButton";
 import { useEditorDispatch, useEditorState } from "../context/EditorContext";
 
 const storageKey = "lyric-alignment:walkthrough:v1";
@@ -104,22 +106,27 @@ export default function EditorWalkthrough() {
 
   return (
     <>
-      <Button
-        ref={helpRef}
-        aria-describedby={!available ? "tour-unavailable" : undefined}
-        onClick={() => setRequested(true)}
-      >
-        Help
-      </Button>
-      {!available ? (
-        <span
-          id="tour-unavailable"
-          role={requested ? "status" : undefined}
-          className={requested ? "tour-unavailable" : "sr-only"}
+      <div className="fixed right-6 bottom-6 z-10 hidden flex-col items-end gap-3 lg:flex">
+        <TooltipButton
+          ref={helpRef}
+          tooltip="Help"
+          aria-label="Help"
+          className="grid size-12 place-items-center rounded-full p-0 shadow-md"
+          aria-describedby={!available ? "tour-unavailable" : undefined}
+          onClick={() => setRequested(true)}
         >
-          Load a song and wait for the current operation to finish to start the walkthrough.
-        </span>
-      ) : null}
+          <QuestionIcon size={24} aria-hidden="true" />
+        </TooltipButton>
+        {!available ? (
+          <span
+            id="tour-unavailable"
+            role={requested ? "status" : undefined}
+            className={requested ? "tour-unavailable order-first rounded-lg border border-(--color-border) bg-(--color-surface) p-3 shadow-md" : "sr-only"}
+          >
+            Load a song and wait for the current operation to finish to start the walkthrough.
+          </span>
+        ) : null}
+      </div>
       {open ? <Walkthrough onClose={close} returnFocus={returnFocus} /> : null}
     </>
   );

@@ -7,7 +7,6 @@ import ThemeToggle from "../components/ThemeToggle";
 import { useEditorDispatch, useEditorState } from "../context/EditorContext";
 import { formatTime } from "../utils/formatTime";
 import { downloadTrackLrc } from "../utils/helpers";
-import EditorWalkthrough from "./EditorWalkthrough";
 export default function Toolbar() {
   const {
     track,
@@ -93,7 +92,6 @@ export default function Toolbar() {
             </p>
           ) : null}
         </div>
-        <EditorWalkthrough />
         <ThemeToggle />
       </div>
       <dialog

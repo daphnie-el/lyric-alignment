@@ -1,5 +1,7 @@
 # Implementation decisions
 
+The document records how the lyric-alignment editor evolved, separating user choices from implementation decisions. Later entries override earlier behavior where noted.
+
 ## 1. Editor shell and Context foundation (initial implementation)
 
 - Follow the wireframe's toolbar, lyrics, timeline, inspector, and readout regions. Use existing Tailwind utilities and theme variables so the shell respects the current light/dark theme without adding dependencies.
@@ -268,3 +270,9 @@ This supersedes the earlier native player controls, separate playback slider, an
 - Timeline control verification: all 57 playback, save, and timeline browser tests passed, along with lint, the TypeScript production build, and whitespace checks.
 - Use an action-row container query to show Delete's label at an available width of at least 200px; hide the label below that threshold. Let its tooltip wrapper grow and make the button fill the wrapper, with a 36px minimum width. This follows the inspector's available space instead of the viewport width. Keep Delete's danger styling and tooltip in both forms.
 - Verification: the initial refinements passed 89 targeted browser tests; Floating UI integration passed 47; filled icons passed 44. The final responsive Delete change passed both desktop/mobile inspector checks and the production build. Typecheck and lint passed for the icon/tooltip changes, and whitespace checks passed. Responsive checks cover textarea growth, capping, scrolling and shrinking; action alignment; tooltips on hover/focus and Escape dismissal; and Delete's label at wide and compact container widths.
+
+## Shared browser-test walkthrough dismissal
+
+- The user approved preventing the walkthrough from opening in ordinary browser tests by setting its existing localStorage dismissal flag before app startup. Production walkthrough behavior stays unchanged.
+- Export a reusable `skipWalkthrough(page)` helper and override the shared Playwright page fixture to install its initialization script automatically. Every browser spec imports this fixture so initial navigation, imports, and reloads receive the same setup in their isolated browser contexts.
+- Default the `skipWalkthrough` option to `true`; walkthrough-specific tests can use `test.use({ skipWalkthrough: false })` to exercise first-time behavior.
