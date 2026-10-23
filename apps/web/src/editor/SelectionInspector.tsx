@@ -1,12 +1,12 @@
-import { useEffect, useId, useRef, useState } from "react";
 import { ArrowsMergeIcon } from "@phosphor-icons/react/dist/csr/ArrowsMerge";
 import { ArrowsSplitIcon } from "@phosphor-icons/react/dist/csr/ArrowsSplit";
 import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
+import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "../components/Button";
-import { TooltipButton } from "../components/TooltipButton";
 import { DialogFooter } from "../components/DialogFooter";
 import { Input } from "../components/Input";
+import { TooltipButton } from "../components/TooltipButton";
 import { useEditorDispatch, useEditorState } from "../context/EditorContext";
 import { formatTime } from "../utils/formatTime";
 import {
@@ -50,8 +50,8 @@ export default function SelectionInspector() {
       <h2 id="selection-heading">Selection</h2>
       {selectedTimelineIds.length > 1 ? (
         <div className="my-6">
-          <p className="font-medium">
-            {selectedTimelineIds.length} lines selected
+          <p className="font-bold text-sm">
+            {selectedTimelineIds.length} lines selected.
           </p>
           <p>
             Drag any selected line to move the group. Arrow keys move by 100 ms;
@@ -61,6 +61,21 @@ export default function SelectionInspector() {
             Shift + click toggles lines. Press Escape to clear the selection.
             Select one line to resize or edit its timing.
           </p>
+          <p>
+            Press <kbd>Delete</kbd> to remove their timeline segments. Lyrics
+            stay in the lyric sheet.
+          </p>
+          <Button
+            color="danger"
+            className="button-content w-full"
+            disabled={saving || interacting}
+            onClick={() =>
+              dispatch({ type: "removeSegments", lineIds: selectedTimelineIds })
+            }
+          >
+            <TrashIcon weight="fill" size={16} aria-hidden="true" />
+            Delete segments
+          </Button>
         </div>
       ) : line && track ? (
         <>
@@ -113,7 +128,11 @@ export default function SelectionInspector() {
       )}
       {singleLine ? (
         <div className="inspector-actions mt-6 flex items-center gap-3 border-t border-(--color-border) pt-5">
-          <div role="group" aria-label="Merge and split lyrics" className="flex gap-2">
+          <div
+            role="group"
+            aria-label="Merge and split lyrics"
+            className="flex gap-2"
+          >
             <TooltipButton
               aria-label="Merge with next lyric"
               tooltip="Merge with next lyric"

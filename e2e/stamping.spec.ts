@@ -19,7 +19,7 @@ const track = {
 };
 
 const button = (page: Page) =>
-  page.getByRole("button", { name: "Stamp current time", exact: true });
+  page.getByRole("button", { name: "Set lyric start time", exact: true });
 const segment = (page: Page, id: string) => page.getByTestId(`segment-${id}`);
 const lyric = (page: Page, id: string) =>
   page.getByRole("list", { name: "Lyric lines" })
@@ -106,6 +106,31 @@ test("stamps enforce positive durations and a one-millisecond gap at boundaries"
   const reversed = [s("chorus", 1000, 2000), s("verse", 3000, 4000)];
   expect(stamp(reversed, "bridge", 6000).error).toContain("sheet order");
   expect(source).toEqual([s("verse", 1000, 1001), s("bridge", 1004, 14250)]);
+});
+
+test("stamps and restamps cap provisional ends at 15 seconds or the track end", () => {
+  const stampLong = (segments: readonly Segment[], start: number) =>
+    stampSegment(segments, order, "verse", start, 60000);
+  expect(stampLong([], 10000).segments).toEqual([s("verse", 10000, 25000)]);
+  expect(stampLong([s("verse", 10000, 60000)], 20000).segments).toEqual([
+    s("verse", 20000, 35000),
+  ]);
+  expect(stampLong([], 45000).segments).toEqual([s("verse", 45000, 60000)]);
+  expect(stampLong([], 52000).segments).toEqual([s("verse", 52000, 60000)]);
+});
+
+test("timed neighbors override the provisional 15-second end", () => {
+  for (const nextStart of [20000, 40000]) {
+    const next = s("chorus", nextStart, nextStart + 5000);
+    expect(stampSegment([next], order, "verse", 10000, 60000).segments).toEqual([
+      s("verse", 10000, nextStart - 1), next,
+    ]);
+  }
+  const first = stampSegment([], order, "verse", 10000, 60000).segments!;
+  expect(stampSegment(first, order, "chorus", 40000, 60000).segments).toEqual([
+    s("verse", 10000, 39999), s("chorus", 40000, 55000),
+  ]);
+  expect(first).toEqual([s("verse", 10000, 25000)]);
 });
 
 test("Space closes the previous lyric one millisecond early in one undo step", async ({ page }) => {

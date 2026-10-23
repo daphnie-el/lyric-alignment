@@ -8,8 +8,15 @@ import { useEditorDispatch, useEditorState } from "../context/EditorContext";
 import { formatTime } from "../utils/formatTime";
 import { downloadTrackLrc } from "../utils/helpers";
 export default function Toolbar() {
-  const { track, status, interacting, saving, importing, unsavedChanges, saveConflict } =
-    useEditorState();
+  const {
+    track,
+    status,
+    interacting,
+    saving,
+    importing,
+    unsavedChanges,
+    saveConflict,
+  } = useEditorState();
   const dispatch = useEditorDispatch();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const exportButtonRef = useRef<HTMLButtonElement>(null);
@@ -22,7 +29,12 @@ export default function Toolbar() {
     track?.lines.filter((line) => timedIds.has(line.id)).length ?? 0;
   const untimed = total - timed;
   const exportDisabled =
-    status !== "ready" || !track || !timed || interacting || saving || importing;
+    status !== "ready" ||
+    !track ||
+    !timed ||
+    interacting ||
+    saving ||
+    importing;
 
   function exportLrc() {
     if (exportDisabled || !track) return;
@@ -46,7 +58,9 @@ export default function Toolbar() {
         </h1>
         <p className="m-0 wrap-break-word text-sm">
           {track
-            ? [track.artist, formatTime(track.durationMs)].filter(Boolean).join(" · ")
+            ? [track.artist, formatTime(track.durationMs)]
+                .filter(Boolean)
+                .join(" · ")
             : "Your workspace for timing lyrics"}
         </p>
       </div>
@@ -56,7 +70,6 @@ export default function Toolbar() {
           <Button
             ref={exportButtonRef}
             title="LRC export"
-            color="outline"
             className="font-semibold"
             disabled={exportDisabled}
             aria-describedby={track && !timed ? "export-guidance" : undefined}

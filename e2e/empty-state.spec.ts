@@ -22,7 +22,7 @@ for (const width of [1440, 375]) {
     await expect(page.getByRole("button", { name: "Retry", exact: true })).toHaveCount(0);
     await expect(page.locator("#load-song")).toBeEnabled();
     await expect(page.getByRole("textbox", { name: "Lyric sheet", exact: true })).toBeDisabled();
-    for (const name of ["Add all lines", "+ Add line", "Save alignment", "Undo", "Redo", "Export LRC", "Zoom in", "Zoom out", "Stamp current time"]) {
+    for (const name of ["Add all lines", "+ Add line", "Save alignment", "Undo", "Redo", "Export LRC", "Zoom in", "Zoom out", "Set lyric start time"]) {
       await expect(page.getByRole("button", { name, exact: true })).toBeDisabled();
     }
     await expect(page.locator("audio")).toHaveCount(0);
@@ -98,7 +98,7 @@ for (const source of ["file", "url"]) {
     await page.getByRole("button", { name: "Add all lines", exact: true }).click();
     await expect(page.getByText(lyricGuidance, { exact: true })).toHaveCount(0);
     await expect(timeline(page)).toContainText("Drag a lyric here, or select a lyric and use Stamp current time");
-    await page.getByRole("button", { name: "Stamp current time", exact: true }).click();
+    await page.getByRole("button", { name: "Set lyric start time", exact: true }).click();
     await expect(timeline(page).locator(".timeline-block")).toHaveCount(1);
     await expect(timeline(page).locator(".timeline-hint")).toHaveCount(0);
     await page.getByRole("button", { name: "Save alignment", exact: true }).click();

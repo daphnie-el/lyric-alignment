@@ -53,7 +53,7 @@ async function dragTo(
   });
   await expect(page.locator(".timeline-preview")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Stamp current time", exact: true }),
+    page.getByRole("button", { name: "Set lyric start time", exact: true }),
   ).toBeDisabled();
   await page.mouse.up();
 }
@@ -133,7 +133,7 @@ test("lyric clicks select only; explicit stamping and keyboard resizing synchron
   await expect(undo).toBeDisabled();
   await expect(redo).toBeDisabled();
   await expect(page.getByRole("button", { name: "Save alignment", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "Stamp current time", exact: true }).click();
+  await page.getByRole("button", { name: "Set lyric start time", exact: true }).click();
   await lyric.click();
   await expect(page.getByTestId("segment-c")).toHaveCount(1);
   await expect(page.getByText("4 lines · 3 placed")).toBeVisible();
@@ -395,7 +395,7 @@ test("explicit stamping shortens a segment near the track end", async ({
     .getByRole("button")
     .nth(2)
     .click();
-  await page.getByRole("button", { name: "Stamp current time", exact: true }).click();
+  await page.getByRole("button", { name: "Set lyric start time", exact: true }).click();
   await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(page.getByTestId("segment-c")).toContainText(
     "0:06.000 – 0:07.000",
@@ -718,7 +718,7 @@ test("clear selection removes only the selected placement and supports undo, red
     audio.currentTime = 0;
   });
   await lyrics.getByRole("button", { name: /Lyric a Untimed/ }).click();
-  await page.getByRole("button", { name: "Stamp current time", exact: true }).click();
+  await page.getByRole("button", { name: "Set lyric start time", exact: true }).click();
   await expect(page.getByTestId("segment-a")).toContainText(
     "0:00.000 – 0:02.999",
   );
@@ -740,7 +740,7 @@ test("clearing an unplaced selection preserves history; removing a placement cle
     .getByRole("button")
     .nth(2)
     .click();
-  await page.getByRole("button", { name: "Stamp current time", exact: true }).click();
+  await page.getByRole("button", { name: "Set lyric start time", exact: true }).click();
   await undo.click();
   await expect(
     inspector.getByRole("textbox", { name: "Start at", exact: true }),
@@ -1200,7 +1200,7 @@ test("zero-offset group drags preserve redo and undo prunes placements from sele
     .getByRole("button")
     .nth(3)
     .click();
-  await page.getByRole("button", { name: "Stamp current time", exact: true }).click();
+  await page.getByRole("button", { name: "Set lyric start time", exact: true }).click();
   await selectGroup(page, ["a", "d"]);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(page.getByTestId("segment-d")).toHaveCount(0);

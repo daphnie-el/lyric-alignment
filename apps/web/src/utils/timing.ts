@@ -88,7 +88,11 @@ export function stampSegment(
   for (const id of orderedLineIds) {
     if (id === lineId) {
       targetIndex = result.length;
-      result.push({ line_id: lineId, start_ms: startMs, end_ms: durationMs });
+      result.push({
+        line_id: lineId,
+        start_ms: startMs,
+        end_ms: Math.min(startMs + 15000, durationMs),
+      });
     } else {
       const segment = byId.get(id);
       if (segment) result.push(segment);

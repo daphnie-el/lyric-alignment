@@ -20,7 +20,12 @@ const interactiveSelector = [
 ].join(", ");
 
 export default function StampControls() {
-  const { track, selectedLineId, editingLocked: saving, interacting } = useEditorState();
+  const {
+    track,
+    selectedLineId,
+    editingLocked: saving,
+    interacting,
+  } = useEditorState();
   const ready = usePlaybackReady();
   const stamp = useStampLine();
   const target =
@@ -34,7 +39,7 @@ export default function StampControls() {
     function onKeyDown(event: KeyboardEvent) {
       if (
         disabled ||
-        event.key !== " " ||
+        (event.key !== " " && event.key !== "Enter") ||
         event.defaultPrevented ||
         event.repeat ||
         event.isComposing ||
@@ -55,19 +60,21 @@ export default function StampControls() {
   }, [disabled, stamp]);
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <Button
-        disabled={disabled}
-        onClick={() => stamp()}
-        aria-describedby="stamp-target stamp-hint"
-      >
-        Stamp current time
-      </Button>
+    <div className="flex min-w-0 flex-col gap-3">
+      <div className="flex flex-wrap items-end gap-3">
+        <Button
+          disabled={disabled}
+          onClick={() => stamp()}
+          aria-describedby={target ? "stamp-target stamp-hint" : "stamp-hint"}
+          color="outline"
+        >
+          Set lyric start time
+        </Button>
 
-      <span id="stamp-hint" className="text-xs text-(--color-text-muted)">
-        Press <kbd>Space</kbd> to time the current lyric and move to the next
-        line.
-      </span>
+        <p id="stamp-hint" className="text-xs text-(--color-text-muted)">
+          Press <kbd>Space</kbd> to stamp when this lyric begins.
+        </p>
+      </div>
     </div>
   );
 }

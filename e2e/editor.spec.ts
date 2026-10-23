@@ -218,11 +218,11 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 375, height: 812 
     await expect(page.getByTestId('segment-verse-c')).toHaveCount(0);
     await expect(page.getByText('3 lines · 1 placed')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Save alignment', exact: true })).toBeDisabled();
-    await page.getByRole('button', { name: 'Stamp current time', exact: true }).click();
+    await page.getByRole('button', { name: 'Set lyric start time', exact: true }).click();
     await lyrics.getByRole('button').nth(2).click();
     await expect(inspector.getByRole('textbox', { name: 'Start at', exact: true })).toHaveValue('0:20');
-    await expect(inspector.getByRole('textbox', { name: 'End at', exact: true })).toHaveValue('4:07');
-    await expect(inspector.getByText('3:47', { exact: true })).toBeVisible();
+    await expect(inspector.getByRole('textbox', { name: 'End at', exact: true })).toHaveValue('0:35');
+    await expect(inspector.getByText('0:15', { exact: true })).toBeVisible();
     await expect(preview.getByText('An untimed ending', { exact: true })).toBeVisible();
     await inspector.getByRole('button', { name: 'Remove Segment', exact: true }).click();
     await expect(preview.getByText('♪ ♪ ♪', { exact: true })).toBeVisible();

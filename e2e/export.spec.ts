@@ -133,7 +133,7 @@ test("export is disabled without timing and during timeline interaction", async 
   await expect(exportButton(page)).toBeDisabled();
   await expect(exportButton(page)).toHaveAccessibleDescription("Time at least one lyric line to export.");
   await expect(page.getByText("Time at least one lyric line to export.")).toBeVisible();
-  await page.getByRole("button", { name: "Stamp current time", exact: true }).click();
+  await page.getByRole("button", { name: "Set lyric start time", exact: true }).click();
   await expect(exportButton(page)).toBeEnabled();
   const box = (await page.getByRole("button", { name: "Resize start of Bună seara 🌙" }).boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + 20);

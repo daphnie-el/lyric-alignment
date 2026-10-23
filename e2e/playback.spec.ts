@@ -364,7 +364,7 @@ test("seeking is unavailable when audio metadata cannot load", async ({ page }) 
   await page.goto("/");
   await expect(page.getByRole("heading", { name: track.title })).toBeVisible();
   await expect(page.getByRole("button", { name: "Retry playback", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Stamp current time", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Set lyric start time", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Play", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Stop", exact: true })).toBeDisabled();
   await expect(page.getByRole("slider", { name: "Playback position", exact: true })).toHaveAttribute("aria-disabled", "true");
