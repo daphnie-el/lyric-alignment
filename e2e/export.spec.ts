@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { expect, test, type Download, type Page } from "@playwright/test";
+import { expect, test, type Download, type Page } from "./fixtures";
 import { segmentsToLrc } from "../apps/web/src/utils/helpers";
 import type { Segment } from "../apps/web/src/utils/types";
 import { mockAudio, waitForAudio } from "./helpers/audio";

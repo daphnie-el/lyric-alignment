@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test, type Locator } from "./fixtures";
 import { mockAudio, waitForAudio } from "./helpers/audio";
 
 const track = {

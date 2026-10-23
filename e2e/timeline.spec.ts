@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 import {
   moveSegments,
   normalizeSegments,
@@ -978,7 +978,7 @@ test("Shift-click toggles nonadjacent lines, updates inspector, and does not dir
   await expect(block(page, "c")).toHaveAttribute("aria-current", "true");
   await expect(block(page, "b")).toHaveAttribute("aria-current", "false");
   await expect(
-    page.getByText("2 lines selected", { exact: true }),
+    page.getByText("2 lines selected.", { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("textbox", { name: "Start at", exact: true }),

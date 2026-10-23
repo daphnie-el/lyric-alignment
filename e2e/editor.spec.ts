@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { mockAudio, waitForAudio } from './helpers/audio';
 
 const longLine = `A long lyric that should wrap naturally ${'through the quiet night '.repeat(12)}`;

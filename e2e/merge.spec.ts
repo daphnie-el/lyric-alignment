@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 import type { Segment, TrackPayload } from "../apps/web/src/utils/types";
 import { mockAudio } from "./helpers/audio";
 

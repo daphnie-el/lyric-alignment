@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 import { mockAudio, waitForAudio } from "./helpers/audio";
 
 const durationSeconds = 12.5;
@@ -25,6 +25,8 @@ async function load(page: Page) {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: track.title })).toBeVisible();
   await waitForAudio(page);
+  // Keep real media playback without competing for the host's audio output.
+  await page.locator("audio").evaluate((audio: HTMLAudioElement) => { audio.muted = true; });
 }
 
 async function playheadX(page: Page) {

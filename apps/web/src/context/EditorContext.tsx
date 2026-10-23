@@ -106,6 +106,7 @@ type EditorAction =
   | { type: "loadFailure"; error: string }
   | { type: "retry" }
   | { type: "selectLine"; id: string | null }
+  | { type: "restoreSelection"; trackId: string; selectedLineId: string | null; selectedTimelineIds: string[] }
   | { type: "toggleTimelineLine"; id: string }
   | { type: "moveSegments"; lineIds: string[]; offsetMs: number }
   | { type: "removeSegment"; lineId: string }
@@ -427,6 +428,18 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
             ? [action.id]
             : [],
       };
+    case "restoreSelection": {
+      if (state.track?.id !== action.trackId) return state;
+      const track = state.track;
+      return {
+        ...state,
+        selectedLineId: track.lines.some((line) => line.id === action.selectedLineId)
+          ? action.selectedLineId : null,
+        selectedTimelineIds: action.selectedTimelineIds.filter((id) =>
+          track.segments.some((segment) => segment.line_id === id),
+        ),
+      };
+    }
     case "toggleTimelineLine": {
       if (!state.track?.segments.some((s) => s.line_id === action.id))
         return state;

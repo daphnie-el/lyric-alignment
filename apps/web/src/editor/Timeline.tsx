@@ -332,6 +332,7 @@ export default function Timeline() {
             <MagnifyingGlassPlusIcon weight="fill" size={20} aria-hidden="true" />
           </TooltipButton>
           <Button
+            data-tour="save"
             color="primary"
             className=""
             loading={saving}
@@ -346,6 +347,7 @@ export default function Timeline() {
       </div>
       {!track ? <TrackEmptyState /> : (
         <div
+          data-tour="adjust"
           className="timeline-scroll shrink-0"
           ref={scrollContainer}
           aria-label="Scrollable timeline"

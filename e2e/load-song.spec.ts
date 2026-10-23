@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test, expect, type Page, type Request } from "@playwright/test";
+import { test, expect, type Page, type Request } from "./fixtures";
 import type { TrackPayload } from "../apps/web/src/utils/types";
 import { createWav, mockAudio, waitForAudio } from "./helpers/audio";
 
@@ -84,6 +84,29 @@ test("device file import warns, submits multipart, resets editor/player, and sur
   await page.reload();
   await expect(page.getByRole("heading", { name: "New song", exact: true })).toBeVisible();
   await expect(page.getByText(success, { exact: true })).toHaveCount(0);
+});
+
+test("canceling the device picker keeps the modal and existing file selection", async ({ page }) => {
+  const posts = await setup(page);
+  await loadButton(page).click();
+  await page.getByRole("radio", { name: "Device file", exact: true }).check();
+  const input = dialog(page).getByLabel("Audio file", { exact: true });
+  const submit = dialog(page).getByRole("button", { name: "Load song", exact: true });
+
+  // Native picker UI is outside Playwright; reproduce the event it emits.
+  await input.dispatchEvent("cancel", { bubbles: true, cancelable: false });
+  await expect(dialog(page)).toBeVisible();
+  await expect(submit).toBeDisabled();
+
+  await input.setInputFiles({ name: "My song.wav", mimeType: "audio/wav", buffer: createWav(8) });
+  await input.dispatchEvent("cancel", { bubbles: true, cancelable: false });
+  await expect(dialog(page)).toBeVisible();
+  await expect(submit).toBeEnabled();
+  expect(await input.evaluate((element: HTMLInputElement) => element.files?.[0]?.name)).toBe("My song.wav");
+  expect(posts).toHaveLength(0);
+
+  await page.keyboard.press("Escape");
+  await expect(dialog(page)).toHaveCount(0);
 });
 
 test("switching sources never submits a file hidden by an empty picker", async ({ page }) => {

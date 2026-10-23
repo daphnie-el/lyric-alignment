@@ -10,7 +10,7 @@ export default function PlaybackControls() {
   const { play, pause, stop } = usePlaybackControls();
   const action = playing ? "Pause" : "Play";
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div data-tour="playback" className="flex flex-wrap items-center gap-2">
       <TooltipButton
         aria-label={action}
         tooltip={action}

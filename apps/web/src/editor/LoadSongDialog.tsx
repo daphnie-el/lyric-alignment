@@ -226,6 +226,8 @@ function LoadSongDialog() {
       className="m-auto max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-xl border border-(--color-border) bg-(--color-surface) p-0 text-(--color-text) shadow-xl backdrop:bg-black/50"
       onKeyDown={containKeys}
       onCancel={(event) => {
+        // The file picker also emits a bubbling cancel event.
+        if (event.target !== event.currentTarget) return;
         event.preventDefault();
         close();
       }}
@@ -272,7 +274,10 @@ function LoadSongDialog() {
           </>
         ) : (
           <form id={sourceFormId} onSubmit={(event) => void checkSource(event)}>
-            <p id="load-song-description">
+            <p
+              id="load-song-description"
+              className="p-2 border border-(--color-primary) bg-(--color-surface-muted) text-sm rounded-lg"
+            >
               Choose an MP3, WAV, Ogg, or M4A file up to 100 MiB, or enter a
               direct audio URL. Streaming-service webpage links are not
               supported.

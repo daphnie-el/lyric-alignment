@@ -116,6 +116,7 @@ export default function SelectionInspector() {
             durationMs={track.durationMs}
           />
           <Button
+            data-tour="remove-segment"
             disabled={saving}
             className="w-full bg-none border border-(--color-danger)/50 text-(--color-danger) hover:bg-(--color-danger-bg)/50"
             onClick={() => dispatch({ type: "removeSegment", lineId: line.id })}
@@ -134,6 +135,7 @@ export default function SelectionInspector() {
             className="flex gap-2"
           >
             <TooltipButton
+              data-tour="merge"
               aria-label="Merge with next lyric"
               tooltip="Merge with next lyric"
               className="inspector-action"
@@ -154,6 +156,7 @@ export default function SelectionInspector() {
           </div>
           <span aria-hidden="true" className="h-6 w-px bg-(--color-border)" />
           <TooltipButton
+            data-tour="delete"
             aria-label="Delete"
             tooltip="Delete"
             wrapperClassName="min-w-0 flex-1"
@@ -198,6 +201,7 @@ function SplitLyric({
   return (
     <>
       <TooltipButton
+        data-tour="split"
         aria-label="Split"
         tooltip="Split"
         className="inspector-action"

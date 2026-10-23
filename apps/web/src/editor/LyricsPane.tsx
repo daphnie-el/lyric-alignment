@@ -115,7 +115,7 @@ export default function LyricsPane() {
           onChange={(event) => setDraft(event.currentTarget.value)}
           rows={3}
         />
-        <div className="grid grid-cols-2 gap-2">
+        <div data-tour="add-lyrics" className="grid grid-cols-2 gap-2">
           <Button
             disabled={editingDisabled || !text}
             onClick={() => {

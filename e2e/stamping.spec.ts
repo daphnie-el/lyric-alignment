@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 import { stampSegment } from "../apps/web/src/utils/timing";
 import type { SaveAlignmentRequest, Segment } from "../apps/web/src/utils/types";
 import { mockAudio, waitForAudio } from "./helpers/audio";

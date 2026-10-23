@@ -63,6 +63,7 @@ export default function StampControls() {
     <div className="flex min-w-0 flex-col gap-3">
       <div className="flex flex-wrap items-end gap-3">
         <Button
+          data-tour="stamp"
           disabled={disabled}
           onClick={() => stamp()}
           aria-describedby={target ? "stamp-target stamp-hint" : "stamp-hint"}
