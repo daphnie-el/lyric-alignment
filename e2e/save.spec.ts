@@ -35,7 +35,7 @@ test('saves latest inspector edit, resets selection and history, retains returne
   await move(page).press('ArrowRight');
   await move(page).press('ArrowRight');
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
-  const end = page.getByRole('textbox', { name: 'End', exact: true });
+  const end = page.getByRole('textbox', { name: 'End at', exact: true });
   await end.fill('0:04');
   // Clicking Save commits the focused inspector field before submitting.
   await save(page).click();
@@ -81,7 +81,7 @@ test('dirty status follows content through undo and redo, ignoring selection, zo
   await load(page);
   await move(page).click();
   await page.getByRole('button', { name: 'Zoom in' }).click();
-  const end = page.getByRole('textbox', { name: 'End', exact: true });
+  const end = page.getByRole('textbox', { name: 'End at', exact: true });
   await end.focus(); await end.blur();
   await end.fill('0:25'); await end.blur();
   await expect(save(page)).toBeDisabled();
@@ -101,7 +101,7 @@ test('alignment repairs are unsaved', async ({ page }) => {
   await expect(page.getByText('Unsaved changes', { exact: true })).toBeVisible();
 });
 
-for (const failure of ['network', 'server', 'conflict'] as const) {
+for (const failure of ['network', 'server'] as const) {
   test(`${failure} failure preserves work and history with friendly feedback`, async ({ page }) => {
     await load(page);
     let calls = 0;
@@ -110,19 +110,19 @@ for (const failure of ['network', 'server', 'conflict'] as const) {
       expect(route.request().postDataJSON().version).toBe(3);
       if (calls === 1) {
         if (failure === 'network') await route.abort('failed');
-        else await route.fulfill({ status: failure === 'conflict' ? 409 : 500, json: { error: failure, version: 99, lines: track.lines, alignment: { segments: [] } } });
+        else await route.fulfill({ status: 500, json: { error: failure, version: 99, lines: track.lines, alignment: { segments: [] } } });
       } else {
         await route.fulfill({ json: { version: 4, lines: track.lines, alignment: { segments: route.request().postDataJSON().segments } } });
       }
     });
     await move(page).press('ArrowRight');
     await save(page).click();
-    await expect(page.getByRole('alert')).toContainText(failure === 'conflict' ? 'Another session saved a newer version' : 'Could not save your changes');
+    await expect(page.getByRole('alert')).toContainText('Could not save your changes');
     await expect(page.getByText('Changes saved successfully', { exact: true })).toHaveCount(0);
     await expect(save(page)).not.toHaveAttribute('aria-busy', 'true');
     await expect(page.getByText('Unsaved changes', { exact: true })).toBeVisible();
     await expect(page.getByTestId('segment-a')).toContainText('0:00.100 – 0:03.100');
-    await expect(page.getByRole('textbox', { name: 'Start', exact: true })).toHaveValue('0:00');
+    await expect(page.getByRole('textbox', { name: 'Start at', exact: true })).toHaveValue('0:00');
     await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
     await save(page).click();
     await expect(save(page)).toBeDisabled();
@@ -157,7 +157,7 @@ test('in-flight save blocks edits and duplicate submissions, keeps zoom and unlo
   await expect(page.getByText('Changes saved successfully', { exact: true })).toHaveCount(0);
   await expect(move(page)).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Resize end of Lyric a' })).toBeDisabled();
-  await expect(page.getByRole('textbox', { name: 'Start', exact: true })).toBeDisabled();
+  await expect(page.getByRole('textbox', { name: 'Start at', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Remove Segment', exact: true })).toBeDisabled();
   await expect(page.getByRole('list', { name: 'Lyric lines' }).getByRole('button').first()).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();

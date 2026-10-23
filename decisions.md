@@ -203,3 +203,68 @@ Phase 2: import dialog and playback
 - Listen for the stored player's `canplay` event before showing “Song loaded, please add lyrics to the lyrics sheet.” Show inline and toast errors with retry options. A post-commit playback failure retains the newly stored song; the old song has already been replaced. An interrupted response may leave server outcome uncertain, which the error message explains.
 - Native LRC download starts before replacement but cannot confirm the user saved the file. Disable Export and continue when no lyrics are timed. Native player errors also show an inline Retry playback action.
 - Empty-workspace messaging remains Phase 3. Preserve the pre-existing staged LyricsPane edit; Phase 2 only adds its import editing lock.
+
+## 10. Playback controls merged into the timeline
+
+This supersedes the earlier native player controls, separate playback slider, and non-interactive playhead decisions.
+
+### User decisions
+
+- Use the timeline's vertical indicator for playback and seeking. Dragging temporarily pauses running playback and resumes it on release; dragging while paused keeps playback paused.
+- Place icon-only Play/Pause and Stop buttons before Undo in the timeline's top-right row, using the solid Heroicons icons. The user selected this row over the page header and chose Stop to pause and reset to 0:00.
+- Use `grab` on the indicator and `grabbing` during dragging.
+
+### Agent implementation choices approved in the plan
+
+- Retain the audio element without native controls so import readiness, media errors, and Retry playback keep working. Move the current-time readout beside the timeline controls and show rejected play attempts inline. Disable playback and seeking until audio metadata is ready.
+- Extend the existing playback store with Stop and scrub lifecycle commands rather than add another playback state source. Keep frame subscriptions inside the indicator and playback controls so timeline blocks do not rerender on each playback update. Playback gestures do not change alignment, selection, or undo history.
+- Use pointer capture and a larger transparent indicator hit area. Calculate seeks from the current canvas bounds and zoom, accounting for scrolling and clamping to track boundaries. Resume once on release, cancellation, or capture loss only when playback was previously running; discard pending resume on unmount or track replacement.
+- Expose the indicator as a labelled keyboard slider: arrows seek by 100 ms and Home/End reach the boundaries. Preserve background Space stamping and automatic indicator visibility. Embed local Heroicons SVG markup without adding an icon-library dependency.
+
+### Details chosen during implementation and verification
+
+- Give lyric resize handles priority where they overlap the indicator's hit area; browser testing caught the initial overlap blocking resizing. Use shared scrubbing state for the grabbing cursor and discard pending resume when Stop interrupts a scrub.
+- Update an existing near-zero click-seek test to click outside the indicator's enlarged hit area. Add coverage for play/pause, Stop, keyboard seeking, paused/running drags, release outside the timeline, cancellation, capture loss, zoom, scrolling, boundaries, rejected play attempts, and Stop during scrubbing.
+- Verification: typecheck, lint, production build, and whitespace checks passed. All 76 targeted playback, timeline, editor, and song-loading browser tests passed. The subsequent grab/grabbing cursor change passed typecheck and whitespace checks; browser tests were not rerun for that cursor-only change.
+
+## 11. Review fixes: save recovery, empty sheets, and multiline export
+
+### User-approved behavior
+
+- Preserve local work after version conflicts and offer confirmed Replace server version or Load latest actions. Never overwrite a replacement song or automatically merge/retry conflicts.
+- Abort saves after 30 seconds, restore editing, and explain that the server outcome may be uncertain. Failed saves clear automatic export intent.
+- Allow deleting the final lyric with atomic undo/redo and persistence of an empty sheet.
+- Join multiline lyric text with spaces only during LRC serialization.
+
+### Implementation decisions
+
+- Keep conflict snapshots separate from the local track and saved baseline. Validate snapshots before using their versions; fetch current track information if a conflict response is incomplete.
+- Use native confirmation dialogs for the two destructive recovery choices. Keep recovery controls beside the save error; ordinary Save cannot bypass a known conflict.
+- Bound both save requests and recovery reads to 30 seconds. Ignore aborted results; a failed reload preserves local content, selection, and history.
+- Keep the HTTP contract unchanged. Retry recovery performs a read only; it never resubmits the failed save. A replacement action always uses the current local content and requires a new confirmation after another conflict.
+- Validate API shape independently of the editor's timing policy. A valid conflict snapshot supplies an overwrite version even if its timings cannot fit in the editor; Load latest validates fit before replacing local work.
+- Verification: all 171 Playwright tests and all 17 API tests passed. Typecheck, lint, production build, and whitespace checks passed. New regressions cover version-enforcing conflicts, repeated conflicts, cancelled confirmations, failed/malformed recovery reads, replacement songs, save/reload timeouts, late responses, timeout cleanup, final-lyric deletion and empty-sheet persistence, and multiline LRC downloads.
+
+## 12. Inspector refinements, filled icons, and tooltips
+
+### User decisions
+
+- Remove the lyric editor icon and manual textarea resizing. Keep automatic growth with a maximum height and internal scrolling.
+- Apply the same bounded autogrow and disabled manual resizing to the lyrics sheet editor.
+- Rename timing fields to Start at and End at, center timestamps horizontally, and keep labels beside their controls. Show independent, natural-language errors for each field, including “Please provide the start at time.” and the equivalent end-time message.
+- Reduce inspector typography, including errors. Put Merge, Split, and Delete in one row; group Merge and Split with matching neutral styling and separate Delete with a vertical divider.
+- Use icon-only actions with tooltips, then show the Delete icon with a visible “Delete” label whenever space allows.
+- Let Delete grow to fill the remaining space in the action row while Merge and Split retain their fixed widths.
+- Use real Floating UI tooltips instead of native titles. The later request for filled variants for all icons supersedes the initial Lucide choice and the earlier Heroicons decisions in section 10.
+- Use filled Phosphor icons for Undo, Redo, Zoom out, and Zoom in, with Floating UI tooltips. Use the Arrow Bend Up Left/Right variants for Undo/Redo. Place the primary Save alignment button last in the timeline control row, after zoom controls.
+
+### Implementation choices
+
+- Share the lyric-text-input styles between the inspector and lyrics sheet to bound CSS textarea autogrow between 5rem and 12rem, with vertical scrolling beyond the cap and no manual resizing. Use 12px inspector body, control, and label text and 11px helper/error text; preserve heading sizes.
+- Keep errors below their respective inputs, left-aligned in the UI font. Treat whitespace-only drafts as empty and make ordering errors specific to the edited field. Preserve commit-on-blur behavior, timing rules, and stored precision.
+- Use Phosphor icons with `weight="fill"` for inspector actions, playback, theme switching, and dialog close buttons because Lucide does not provide the complete filled set. Remove Lucide and import individual Phosphor icons to avoid processing the entire library.
+- Provide a reusable TooltipButton backed by `@floating-ui/react`, with a 400ms hover delay, keyboard-focus activation, Escape/click dismissal, accessible descriptions, portal rendering, and automatic flip/shift positioning. Apply it to inspector and playback icon actions.
+- Use 20px ArrowBendUpLeft, ArrowBendUpRight, MagnifyingGlassMinus, and MagnifyingGlassPlus icons for timeline history and zoom controls. Preserve accessible names, shortcut hints, disabled states, and existing action handlers; keep Save alignment as a text button with its existing loading behavior.
+- Timeline control verification: all 57 playback, save, and timeline browser tests passed, along with lint, the TypeScript production build, and whitespace checks.
+- Use an action-row container query to show Delete's label at an available width of at least 200px; hide the label below that threshold. Let its tooltip wrapper grow and make the button fill the wrapper, with a 36px minimum width. This follows the inspector's available space instead of the viewport width. Keep Delete's danger styling and tooltip in both forms.
+- Verification: the initial refinements passed 89 targeted browser tests; Floating UI integration passed 47; filled icons passed 44. The final responsive Delete change passed both desktop/mobile inspector checks and the production build. Typecheck and lint passed for the icon/tooltip changes, and whitespace checks passed. Responsive checks cover textarea growth, capping, scrolling and shrinking; action alignment; tooltips on hover/focus and Escape dismissal; and Delete's label at wide and compact container widths.

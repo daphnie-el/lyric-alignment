@@ -251,8 +251,8 @@ test("commits draft text before opening, cancels and resets on source changes", 
   await expect(page.getByRole("form", { name: "Split lyric" })).toHaveCount(0);
   await split(page).click();
   await page.getByRole("button", { name: "Close split dialog" }).click();
-  await page.getByRole("textbox", { name: "End", exact: true }).fill("0:06");
-  await page.getByRole("textbox", { name: "End", exact: true }).blur();
+  await page.getByRole("textbox", { name: "End at", exact: true }).fill("0:06");
+  await page.getByRole("textbox", { name: "End at", exact: true }).blur();
   await expect(page.getByRole("form", { name: "Split lyric" })).toHaveCount(0);
   await split(page).click();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();

@@ -129,20 +129,20 @@ test("manual scrolling stays until the next seek or playback update", async ({ p
   await expect(page.getByRole("button", { name: "Save alignment", exact: true })).toBeDisabled();
 });
 
-test("native playback, pause, seek, and end synchronize the shared position", async ({ page }) => {
+test("timeline playback, pause, seek, and end synchronize the shared position", async ({ page }) => {
   await load(page);
   const audio = page.locator("audio");
   const position = page.getByLabel("Current playback position");
   await expect(position).toHaveText("0:00.000");
-  expect(await audio.evaluate((element: HTMLAudioElement) => element.controls)).toBe(true);
+  expect(await audio.evaluate((element: HTMLAudioElement) => element.controls)).toBe(false);
 
-  // Space belongs to the focused native audio control, without an app shortcut.
-  await audio.focus();
+  // Space activates the focused playback button without stamping a lyric.
+  await page.getByRole("button", { name: "Play", exact: true }).focus();
   await page.keyboard.press("Space");
-  await expect(page.getByText("Playing", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
   await expect.poll(() => playheadX(page)).toBeGreaterThan(10);
   await page.keyboard.press("Space");
-  await expect(page.getByText("Paused", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
   const pausedPosition = await position.textContent();
   await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 150)));
   await expect(position).toHaveText(pausedPosition!);
@@ -165,7 +165,7 @@ test("native playback, pause, seek, and end synchronize the shared position", as
   });
   await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.ended)).toBe(true);
   await expect(position).toHaveText("0:12.500");
-  await expect(page.getByText("Paused", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
   await expect.poll(() => playheadX(page)).toBeCloseTo(500, 1);
 });
 
@@ -283,8 +283,9 @@ test("timeline seeking reaches track boundaries without changing alignment", asy
   await expect(position).toHaveText("0:12.500");
   await clickTimeline(page, 0);
   await expect(position).toHaveText("0:00.000");
-  await clickTimeline(page, 100);
-  await expect(position).toHaveText("0:00.100");
+  // Seek outside the indicator’s enlarged pointer hit area.
+  await clickTimeline(page, 500);
+  await expect(position).toHaveText("0:00.500");
   expect(
     await page.locator("audio").evaluate((element: HTMLAudioElement) => element.paused),
   ).toBe(true);
@@ -364,10 +365,131 @@ test("seeking is unavailable when audio metadata cannot load", async ({ page }) 
   await expect(page.getByRole("heading", { name: track.title })).toBeVisible();
   await expect(page.getByRole("button", { name: "Retry playback", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Stamp current time", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Stop", exact: true })).toBeDisabled();
+  await expect(page.getByRole("slider", { name: "Playback position", exact: true })).toHaveAttribute("aria-disabled", "true");
   await clickTimeline(page, 4000);
   await expect(page.getByLabel("Current playback position")).toHaveText(
     "0:00.000",
   );
   expect(await page.locator("audio").evaluate((audio: HTMLAudioElement) => audio.currentTime)).toBe(0);
   await expect(page.getByRole("button", { name: "Save alignment", exact: true })).toBeDisabled();
+});
+
+test("stop resets playback and the indicator supports keyboard seeking", async ({ page }) => {
+  await load(page);
+  const slider = page.getByRole("slider", { name: "Playback position", exact: true });
+  const position = page.getByLabel("Current playback position");
+  await slider.focus();
+  await slider.press("ArrowRight");
+  await expect(position).toHaveText("0:00.100");
+  await slider.press("ArrowUp");
+  await expect(position).toHaveText("0:00.200");
+  await slider.press("ArrowLeft");
+  await slider.press("ArrowDown");
+  await slider.press("ArrowLeft");
+  await expect(position).toHaveText("0:00.000");
+  await slider.press("End");
+  await expect(position).toHaveText("0:12.500");
+  await slider.press("Home");
+  await expect(position).toHaveText("0:00.000");
+  await slider.press("Space");
+  await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expect.poll(() => playheadX(page)).toBeGreaterThan(10);
+  await page.getByRole("button", { name: "Stop", exact: true }).click();
+  await expect(position).toHaveText("0:00.000");
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+  expect(await page.locator("audio").evaluate((audio: HTMLAudioElement) => audio.paused)).toBe(true);
+});
+
+for (const playing of [false, true]) {
+  test(`indicator drag pauses and ${playing ? "resumes" : "stays paused"} after release`, async ({ page }) => {
+    await page.setViewportSize({ width: 1800, height: 1100 });
+    await load(page);
+    await page.getByRole("button", { name: "Move Playback lyric first", exact: true }).click();
+    const audio = page.locator("audio");
+    await audio.evaluate((element: HTMLAudioElement) => { element.currentTime = 3; });
+    if (playing) await page.getByRole("button", { name: "Play", exact: true }).click();
+    const head = page.getByTestId("timeline-playhead");
+    const bounds = (await head.boundingBox())!;
+    await page.mouse.move(bounds.x + 1, bounds.y + 15);
+    await page.mouse.down();
+    await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.paused)).toBe(true);
+    await page.mouse.move(bounds.x + 81, bounds.y + 15, { steps: 5 });
+    const paused = await audio.evaluate((element: HTMLAudioElement) => element.currentTime);
+    expect(paused).toBeGreaterThanOrEqual(4.9);
+    expect(paused).toBeLessThan(5.7);
+    await page.waitForTimeout(150);
+    expect(await audio.evaluate((element: HTMLAudioElement) => element.currentTime)).toBe(paused);
+    // Captured release outside the timeline still completes the scrub.
+    await page.mouse.move(bounds.x + 81, bounds.y - 20);
+    await page.mouse.up();
+    await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.paused)).toBe(!playing);
+    await expect(page.getByTestId("segment-first")).toHaveClass(/timeline-selected/);
+    await expect(page.getByRole("button", { name: "Save alignment", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeDisabled();
+  });
+}
+
+test("indicator dragging accounts for zoom and scroll and clamps boundaries", async ({ page }) => {
+  await page.setViewportSize({ width: 1200, height: 1000 });
+  await load(page);
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  const audio = page.locator("audio");
+  await audio.evaluate((element: HTMLAudioElement) => { element.currentTime = 6; });
+  const bounds = (await page.getByTestId("timeline-playhead").boundingBox())!;
+  await page.mouse.move(bounds.x + 1, bounds.y + 15);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x - 159, bounds.y + 15);
+  await expect(page.getByLabel("Current playback position")).toHaveText("0:05.000");
+  await page.mouse.move(-1000, bounds.y + 15);
+  await expect(page.getByLabel("Current playback position")).toHaveText("0:00.000");
+  await page.mouse.move(4000, bounds.y + 15);
+  await page.mouse.up();
+  await expect(page.getByLabel("Current playback position")).toHaveText("0:12.500");
+});
+
+for (const event of ["pointercancel", "lostpointercapture"]) {
+  test(`${event} completes an active scrub once`, async ({ page }) => {
+    await load(page);
+    await page.getByRole("button", { name: "Play", exact: true }).click();
+    const head = page.getByTestId("timeline-playhead");
+    const bounds = (await head.boundingBox())!;
+    await page.mouse.move(bounds.x + 1, bounds.y + 15);
+    await page.mouse.down();
+    await expect(page.getByRole("button", { name: "Play", exact: true })).toBeDisabled();
+    await head.dispatchEvent(event, { pointerId: 1 });
+    await page.mouse.up();
+    await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeEnabled();
+  });
+}
+
+test("playback rejection is visible and can be retried", async ({ page }) => {
+  await load(page);
+  await page.locator("audio").evaluate((audio: HTMLAudioElement) => {
+    audio.play = () => Promise.reject(new DOMException("Blocked", "NotAllowedError"));
+  });
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Could not start playback");
+  await page.locator("audio").evaluate((audio: HTMLAudioElement) => { delete (audio as Partial<HTMLAudioElement>).play; });
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await expect(page.getByText("Could not start playback", { exact: false })).toHaveCount(0);
+});
+
+test("stop during scrubbing discards the pending resume", async ({ page }) => {
+  await load(page);
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  const bounds = (await page.getByTestId("timeline-playhead").boundingBox())!;
+  await page.mouse.move(bounds.x + 1, bounds.y + 15);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + 81, bounds.y + 15);
+  // Activate Stop with the keyboard while pointer capture is still active.
+  await page.getByRole("button", { name: "Stop", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await page.mouse.up();
+  await expect(page.getByLabel("Current playback position")).toHaveText("0:00.000");
+  expect(await page.locator("audio").evaluate((audio: HTMLAudioElement) => audio.paused)).toBe(true);
 });

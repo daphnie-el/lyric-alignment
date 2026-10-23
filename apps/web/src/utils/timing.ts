@@ -9,10 +9,10 @@ export function timingError(
     !Number.isInteger(segment.end_ms) ||
     segment.start_ms < 0
   )
-    return "Lyrics cannot start before the song begins.";
-  if (segment.end_ms <= segment.start_ms) return "End must be after Start.";
+    return "Choose a start time at or after the beginning of the song.";
+  if (segment.end_ms <= segment.start_ms) return "Choose an end time after the start time.";
   if (segment.end_ms > durationMs)
-    return "Lyrics cannot extend past the end of the song.";
+    return "Choose an end time within the song.";
 }
 
 export function normalizeSegments(
@@ -39,7 +39,7 @@ export function normalizeSegments(
       return { ...segment, start_ms: start, end_ms: end };
     });
   return end > durationMs
-    ? { error: "These lyrics cannot fit within the track duration." }
+    ? { error: "There isn’t enough room in the song for these lyrics." }
     : { segments: result };
 }
 
@@ -64,7 +64,7 @@ export function placeSegment(
     return { ...segment, start_ms: start, end_ms: end };
   });
   return end > durationMs
-    ? { error: "These lyrics cannot fit within the track duration." }
+    ? { error: "There isn’t enough room in the song for these lyrics." }
     : { segments: [...before, candidate, ...shifted] };
 }
 

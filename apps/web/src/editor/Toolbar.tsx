@@ -1,3 +1,4 @@
+import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import { useRef } from "react";
 import AudioPlayer from "../components/AudioPlayer";
 import { Button } from "../components/Button";
@@ -7,7 +8,7 @@ import { useEditorDispatch, useEditorState } from "../context/EditorContext";
 import { formatTime } from "../utils/formatTime";
 import { downloadTrackLrc } from "../utils/helpers";
 export default function Toolbar() {
-  const { track, status, interacting, saving, importing, unsavedChanges } =
+  const { track, status, interacting, saving, importing, unsavedChanges, saveConflict } =
     useEditorState();
   const dispatch = useEditorDispatch();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -49,11 +50,7 @@ export default function Toolbar() {
             : "Your workspace for timing lyrics"}
         </p>
       </div>
-      {track ? (
-        <div className="w-full min-w-0 md:w-auto md:flex-2 md:basis-96">
-          <AudioPlayer src={track.audio_url} />
-        </div>
-      ) : null}
+      {track ? <AudioPlayer src={track.audio_url} /> : null}
       <div className="flex items-start gap-3">
         <div className="flex flex-col gap-2">
           <Button
@@ -119,19 +116,7 @@ export default function Toolbar() {
             className="grid size-8 shrink-0 place-items-center border-0 bg-transparent p-0"
             onClick={() => dialogRef.current?.close()}
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              aria-hidden="true"
-              focusable="false"
-            >
-              <path d="m6 6 12 12M18 6 6 18" />
-            </svg>
+            <XIcon weight="fill" size={20} aria-hidden="true" />
           </Button>
         </div>
         <p id="export-dialog-description" className="m-0 px-6 pb-6">
@@ -171,9 +156,9 @@ export default function Toolbar() {
             <Button
               ref={confirmExportRef}
               color="primary"
-              disabled={exportDisabled}
+              disabled={exportDisabled || !!saveConflict}
               onClick={() => {
-                if (exportDisabled) return;
+                if (exportDisabled || saveConflict) return;
                 dispatch({ type: "saveStart", exportAfterSave: true });
                 dialogRef.current?.close();
               }}

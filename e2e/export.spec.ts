@@ -257,7 +257,7 @@ for (const failure of ["network", "server", "conflict"] as const) {
       calls++;
       if (calls === 1) {
         if (failure === "network") return route.abort();
-        return route.fulfill({ status: failure === "conflict" ? 409 : 500, json: { error: failure } });
+        return route.fulfill({ status: failure === "conflict" ? 409 : 500, json: failure === "conflict" ? { error: "version_conflict", version: 2, lines: track.lines, alignment: track.alignment } : { error: failure } });
       }
       const body = route.request().postDataJSON();
       return route.fulfill({ json: { version: 2, lines: body.lines, alignment: { segments: body.segments } } });
@@ -271,8 +271,12 @@ for (const failure of ["network", "server", "conflict"] as const) {
     await expect(page.getByText("Unsaved changes", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeEnabled();
     expect(downloads).toHaveLength(0);
-    await page.getByRole("button", { name: "Save alignment", exact: true }).click();
+    if (failure === "conflict") {
+      page.once("dialog", prompt => prompt.accept());
+      await page.getByRole("button", { name: "Replace server version", exact: true }).click();
+    } else await page.getByRole("button", { name: "Save alignment", exact: true }).click();
     await expect(page.getByRole("button", { name: "Save alignment", exact: true })).toBeDisabled();
+    await expect(page.getByText("Changes saved successfully", { exact: true })).toBeVisible();
     expect(calls).toBe(2);
     expect(downloads).toHaveLength(0);
   });
@@ -318,4 +322,25 @@ test("undo back to saved content exports immediately even with redo history", as
   expect(await content(await downloadPromise)).toContain("[00:01.23]Bună seara 🌙");
   await expect(dialog(page)).not.toBeVisible();
   expect(saves).toBe(0);
+});
+
+for (const newline of ["\n", "\r\n", "\r"]) {
+  test(`multiline serialization normalizes ${JSON.stringify(newline)} without changing editor text`, () => {
+    const lines = [{ id: "a", index: 0, text: `Bună 🌙 \t${newline}\t 夜の歌!` }];
+    const original = structuredClone(lines);
+    expect(segmentsToLrc([track.alignment.segments[0]], lines)).toBe("[00:01.23]Bună 🌙 夜の歌!");
+    expect(lines).toEqual(original);
+  });
+}
+
+test("multiline lyric downloads as one timestamped LRC line", async ({ page }) => {
+  await load(page);
+  await page.getByRole("list", { name: "Lyric lines" }).getByRole("button").first().click();
+  const text = page.getByRole("textbox", { name: "Lyric text", exact: true });
+  await text.fill("First 🌙 \n\tSecond 夜");
+  await exportButton(page).click();
+  const downloading = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export without saving", exact: true }).click();
+  expect(await content(await downloading)).toBe("[00:01.23]First 🌙 Second 夜\n[01:00.00]夜の歌\n[01:05.00]Final lyric");
+  await expect(text).toHaveValue("First 🌙 \n\tSecond 夜");
 });

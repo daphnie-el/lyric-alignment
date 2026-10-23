@@ -77,7 +77,7 @@ test("timing rules preserve gaps, cascade only when necessary, and reject atomic
     spaced[2],
   ]);
   expect(placeSegment(segments, s("c", 2000, 19000), 20000).error).toContain(
-    "cannot fit",
+    "enough room",
   );
   expect(segments).toEqual([s("a", 0, 3000), s("b", 3000, 6000)]);
   for (const invalid of [
@@ -123,7 +123,7 @@ test("lyric clicks select only; explicit stamping and keyboard resizing synchron
   await lyric.press("Space");
   await expect(lyric).toHaveAttribute("aria-current", "true");
   await expect(inspector.getByRole("textbox", { name: "Lyric text", exact: true })).toHaveValue("Lyric c");
-  for (const name of ["Start", "End"]) {
+  for (const name of ["Start at", "End at"]) {
     const field = inspector.getByRole("textbox", { name, exact: true });
     await expect(field).toBeDisabled();
     await expect(field).toHaveValue("");
@@ -138,9 +138,9 @@ test("lyric clicks select only; explicit stamping and keyboard resizing synchron
   await expect(page.getByTestId("segment-c")).toHaveCount(1);
   await expect(page.getByText("4 lines · 3 placed")).toBeVisible();
   await expect(
-    page.getByRole("textbox", { name: "Start", exact: true }),
+    page.getByRole("textbox", { name: "Start at", exact: true }),
   ).toHaveValue("0:06");
-  const endField = page.getByRole("textbox", { name: "End", exact: true });
+  const endField = page.getByRole("textbox", { name: "End at", exact: true });
   await expect(endField).toHaveValue("0:20");
   await endField.fill("0:09");
   await endField.blur();
@@ -150,22 +150,22 @@ test("lyric clicks select only; explicit stamping and keyboard resizing synchron
   });
   await end.press("ArrowRight");
   await expect(
-    page.getByRole("textbox", { name: "End", exact: true }),
+    page.getByRole("textbox", { name: "End at", exact: true }),
   ).toHaveValue("0:09");
   await page
     .getByRole("button", { name: "Resize start of Lyric c", exact: true })
     .press("Shift+ArrowRight");
   await expect(
-    page.getByRole("textbox", { name: "Start", exact: true }),
+    page.getByRole("textbox", { name: "Start at", exact: true }),
   ).toHaveValue("0:07");
   await page
     .getByRole("button", { name: "Move Lyric c", exact: true })
     .press("ArrowRight");
   await expect(
-    page.getByRole("textbox", { name: "Start", exact: true }),
+    page.getByRole("textbox", { name: "Start at", exact: true }),
   ).toHaveValue("0:07");
   await expect(
-    page.getByRole("textbox", { name: "End", exact: true }),
+    page.getByRole("textbox", { name: "End at", exact: true }),
   ).toHaveValue("0:09");
 });
 
@@ -217,7 +217,7 @@ test("pointer resizing previews ripple, commits both edges, and Escape cancels",
   await expect(page.locator(".timeline-preview")).toBeVisible();
   await page.mouse.up();
   await expect(
-    page.getByRole("textbox", { name: "End", exact: true }),
+    page.getByRole("textbox", { name: "End at", exact: true }),
   ).toHaveValue("0:04");
   await expect(page.getByTestId("segment-b")).toContainText(
     "0:04.000 – 0:07.000",
@@ -232,7 +232,7 @@ test("pointer resizing previews ripple, commits both edges, and Escape cancels",
   });
   await page.mouse.up();
   await expect(
-    page.getByRole("textbox", { name: "Start", exact: true }),
+    page.getByRole("textbox", { name: "Start at", exact: true }),
   ).toHaveValue("0:01");
   const updated = (await handle.boundingBox())!;
   await page.mouse.move(updated.x + updated.width / 2, updated.y + 30);
@@ -243,7 +243,7 @@ test("pointer resizing previews ripple, commits both edges, and Escape cancels",
   await page.keyboard.press("Escape");
   await page.mouse.up();
   await expect(
-    page.getByRole("textbox", { name: "End", exact: true }),
+    page.getByRole("textbox", { name: "End at", exact: true }),
   ).toHaveValue("0:04");
 });
 
@@ -252,7 +252,7 @@ test("inspector ripples edits and rejects overflow without changing any segment"
 }) => {
   await load(page);
   await page.getByRole("button", { name: "Move Lyric a", exact: true }).click();
-  const end = page.getByRole("textbox", { name: "End", exact: true });
+  const end = page.getByRole("textbox", { name: "End at", exact: true });
   await end.fill("0:04");
   await end.blur();
   await expect(page.getByTestId("segment-b")).toContainText(
@@ -260,7 +260,7 @@ test("inspector ripples edits and rejects overflow without changing any segment"
   );
   await end.fill("0:19");
   await end.blur();
-  await expect(page.getByRole("alert")).toContainText("cannot fit");
+  await expect(page.getByRole("alert")).toContainText("enough room");
   await expect(page.getByTestId("segment-a")).toContainText(
     "0:00.000 – 0:04.000",
   );
@@ -302,7 +302,7 @@ test("loading repairs overlaps and rejects duplicates or impossible alignments",
   );
   page.once("dialog", (dialog) => dialog.accept());
   await page.reload();
-  await expect(page.getByRole("alert")).toContainText("cannot fit");
+  await expect(page.getByRole("alert")).toContainText("enough room");
 });
 
 test("timeline scrolls on mobile without widening the page", async ({
@@ -375,7 +375,7 @@ test("scrolled drops use the content position and reject a segment past the audi
     19000,
   );
   await expect(page.getByRole("alert")).toContainText(
-    "Lyrics cannot extend past the end of the song.",
+    "Choose an end time within the song.",
   );
   await expect(page.getByTestId("segment-d")).toHaveCount(0);
   await expect(page.getByTestId("segment-c")).toContainText(
@@ -431,7 +431,7 @@ test("undo and redo restore insertions and their entire ripple in one step", asy
   await expect(undo).toBeDisabled();
   // Selection stays on the lyric even while its placement is undone.
   await expect(
-    page.getByRole("textbox", { name: "Start", exact: true }),
+    page.getByRole("textbox", { name: "Start at", exact: true }),
   ).toBeDisabled();
   await redo.click();
   await expect(page.getByTestId("segment-c")).toContainText(
@@ -455,7 +455,7 @@ test("keyboard history traverses moves, resizes, and inspector edits; a new edit
   await page
     .getByRole("button", { name: "Resize end of Lyric a", exact: true })
     .press("ArrowRight");
-  const end = page.getByRole("textbox", { name: "End", exact: true });
+  const end = page.getByRole("textbox", { name: "End at", exact: true });
   await end.fill("0:04");
   await end.blur();
   await page.keyboard.press("Control+z");
@@ -498,13 +498,13 @@ test("selection, zoom, unchanged and rejected edits preserve redo history", asyn
   await page.keyboard.press("Control+z");
   await body.click();
   await page.getByRole("button", { name: "Zoom in", exact: true }).click();
-  const end = page.getByRole("textbox", { name: "End", exact: true });
+  const end = page.getByRole("textbox", { name: "End at", exact: true });
   await end.focus();
   await end.blur();
   // Valid endpoint, but the cascade would exceed track duration.
   await end.fill("0:19");
   await end.blur();
-  await expect(page.getByRole("alert")).toContainText("cannot fit");
+  await expect(page.getByRole("alert")).toContainText("enough room");
   await expect(
     page.getByRole("button", { name: "Undo", exact: true }),
   ).toBeDisabled();
@@ -533,7 +533,7 @@ test("history shortcuts preserve native editing in text fields and editable cont
   await page
     .getByRole("button", { name: "Move Lyric a", exact: true })
     .press("ArrowRight");
-  const start = page.getByRole("textbox", { name: "Start", exact: true });
+  const start = page.getByRole("textbox", { name: "Start at", exact: true });
   await start.focus();
   await start.press("Control+z");
   await start.press("Control+y");
@@ -677,10 +677,10 @@ test("clear selection removes only the selected placement and supports undo, red
   const undo = page.getByRole("button", { name: "Undo", exact: true });
   const redo = page.getByRole("button", { name: "Redo", exact: true });
   await page.getByRole("button", { name: "Move Lyric a", exact: true }).click();
-  const end = inspector.getByRole("textbox", { name: "End", exact: true });
+  const end = inspector.getByRole("textbox", { name: "End at", exact: true });
   await end.fill("0:19");
   await end.blur();
-  await expect(page.getByRole("alert")).toContainText("cannot fit");
+  await expect(page.getByRole("alert")).toContainText("enough room");
   await inspector.getByRole("button", { name: "Remove Segment" }).click();
   await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(page.getByTestId("segment-a")).toHaveCount(0);
@@ -743,7 +743,7 @@ test("clearing an unplaced selection preserves history; removing a placement cle
   await page.getByRole("button", { name: "Stamp current time", exact: true }).click();
   await undo.click();
   await expect(
-    inspector.getByRole("textbox", { name: "Start", exact: true }),
+    inspector.getByRole("textbox", { name: "Start at", exact: true }),
   ).toBeDisabled();
   await inspector.getByRole("button", { name: "Remove Segment" }).click();
   await expect(undo).toBeDisabled();
@@ -981,7 +981,7 @@ test("Shift-click toggles nonadjacent lines, updates inspector, and does not dir
     page.getByText("2 lines selected", { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("textbox", { name: "Start", exact: true }),
+    page.getByRole("textbox", { name: "Start at", exact: true }),
   ).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Remove Segment", exact: true }),
@@ -998,7 +998,7 @@ test("Shift-click toggles nonadjacent lines, updates inspector, and does not dir
   await block(page, "c").click({ modifiers: ["Shift"] });
   await expect(block(page, "c")).toHaveAttribute("aria-current", "false");
   await expect(
-    page.getByRole("textbox", { name: "Start", exact: true }),
+    page.getByRole("textbox", { name: "Start at", exact: true }),
   ).toHaveValue("0:02");
   await expect(
     page.getByRole("button", { name: "Resize start of Lyric a", exact: true }),
@@ -1207,6 +1207,6 @@ test("zero-offset group drags preserve redo and undo prunes placements from sele
   await expect(page.locator(".timeline-selected")).toHaveCount(1);
   await expect(block(page, "a")).toHaveAttribute("aria-current", "true");
   await expect(
-    page.getByRole("textbox", { name: "Start", exact: true }),
+    page.getByRole("textbox", { name: "Start at", exact: true }),
   ).toHaveValue("0:02");
 });

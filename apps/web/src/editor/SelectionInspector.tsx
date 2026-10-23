@@ -1,5 +1,10 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { ArrowsMergeIcon } from "@phosphor-icons/react/dist/csr/ArrowsMerge";
+import { ArrowsSplitIcon } from "@phosphor-icons/react/dist/csr/ArrowsSplit";
+import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
+import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import { Button } from "../components/Button";
+import { TooltipButton } from "../components/TooltipButton";
 import { DialogFooter } from "../components/DialogFooter";
 import { Input } from "../components/Input";
 import { useEditorDispatch, useEditorState } from "../context/EditorContext";
@@ -44,7 +49,7 @@ export default function SelectionInspector() {
       <span className="eyebrow">Inspector</span>
       <h2 id="selection-heading">Selection</h2>
       {selectedTimelineIds.length > 1 ? (
-        <div className="my-6 text-sm">
+        <div className="my-6">
           <p className="font-medium">
             {selectedTimelineIds.length} lines selected
           </p>
@@ -62,42 +67,28 @@ export default function SelectionInspector() {
           <div className="mt-5">
             <label
               htmlFor={lyricInputId}
-              className="mb-2 block text-sm font-medium text-(--color-text)"
+              className="mb-2 block font-medium text-(--color-text)"
             >
               Lyric text
             </label>
-            <div className="relative">
-              <textarea
-                key={`${line.id}:${line.text}`}
-                id={lyricInputId}
-                aria-describedby={lyricHintId}
-                className="input lyric-text-input"
-                rows={2}
-                disabled={saving}
-                defaultValue={line.text}
-                onBlur={(event) => {
-                  const text = event.currentTarget.value;
-                  if (text !== line.text) {
-                    dispatch({ type: "editLine", lineId: line.id, text });
-                  }
-                }}
-              />
-              <svg
-                aria-hidden="true"
-                className="pointer-events-none absolute right-3 top-3 size-4 text-(--color-text-muted)"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.5}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="m16 4 4 4M4 20l4-1L20 7a2.83 2.83 0 0 0-4-4L4 15l-1 6Z" />
-              </svg>
-            </div>
+            <textarea
+              key={`${line.id}:${line.text}`}
+              id={lyricInputId}
+              aria-describedby={lyricHintId}
+              className="input lyric-text-input"
+              rows={2}
+              disabled={saving}
+              defaultValue={line.text}
+              onBlur={(event) => {
+                const text = event.currentTarget.value;
+                if (text !== line.text) {
+                  dispatch({ type: "editLine", lineId: line.id, text });
+                }
+              }}
+            />
             <p
               id={lyricHintId}
-              className="mb-0 mt-2 italic text-xs text-(--color-text-muted)"
+              className="inspector-hint mb-0 mt-2 italic text-(--color-text-muted)"
             >
               Edit your lyric, then click outside or press <kbd>Tab</kbd> to
               apply.
@@ -118,34 +109,45 @@ export default function SelectionInspector() {
           </Button>
         </>
       ) : (
-        <p className="mt-5 text-sm">Select a lyric line to view its timing.</p>
+        <p className="mt-5">Select a lyric line to view its timing.</p>
       )}
       {singleLine ? (
-        <div className="mt-6 flex flex-col gap-2 border-t border-(--color-border) pt-5">
-          <Button
-            disabled={mergeDisabled}
-            onClick={() =>
-              dispatch({ type: "mergeWithNext", lineId: singleLine.id })
-            }
-            color="outline"
-          >
-            Merge with next lyric
-          </Button>
-          <SplitLyric
-            key={singleLine.id}
-            line={singleLine}
-            segment={segment}
-            disabled={saving || interacting || status !== "ready"}
-          />
-          <Button
+        <div className="inspector-actions mt-6 flex items-center gap-3 border-t border-(--color-border) pt-5">
+          <div role="group" aria-label="Merge and split lyrics" className="flex gap-2">
+            <TooltipButton
+              aria-label="Merge with next lyric"
+              tooltip="Merge with next lyric"
+              className="inspector-action"
+              disabled={mergeDisabled}
+              onClick={() =>
+                dispatch({ type: "mergeWithNext", lineId: singleLine.id })
+              }
+              color="neutral"
+            >
+              <ArrowsMergeIcon weight="fill" size={16} aria-hidden="true" />
+            </TooltipButton>
+            <SplitLyric
+              key={singleLine.id}
+              line={singleLine}
+              segment={segment}
+              disabled={saving || interacting || status !== "ready"}
+            />
+          </div>
+          <span aria-hidden="true" className="h-6 w-px bg-(--color-border)" />
+          <TooltipButton
+            aria-label="Delete"
+            tooltip="Delete"
+            wrapperClassName="min-w-0 flex-1"
+            className="inspector-action inspector-delete"
             color="danger"
             disabled={saving}
             onClick={() =>
               dispatch({ type: "deleteLine", lineId: singleLine.id })
             }
           >
-            Delete
-          </Button>
+            <TrashIcon weight="fill" size={16} aria-hidden="true" />
+            <span className="inspector-delete-label">Delete</span>
+          </TooltipButton>
         </div>
       ) : null}
     </aside>
@@ -176,14 +178,18 @@ function SplitLyric({
 
   return (
     <>
-      <Button
+      <TooltipButton
+        aria-label="Split"
+        tooltip="Split"
+        className="inspector-action"
+        color="neutral"
         disabled={unavailable}
         aria-haspopup="dialog"
         aria-expanded={form.source === source && form.open}
         onClick={() => setForm({ source, open: true })}
       >
-        Split
-      </Button>
+        <ArrowsSplitIcon weight="fill" size={16} aria-hidden="true" />
+      </TooltipButton>
       {form.source === source && form.open ? (
         <SplitDialog
           line={line}
@@ -227,9 +233,9 @@ function SplitDialog({
   const splitMs = parseSplitTime(time);
   const error = segment
     ? splitMs === undefined
-      ? "Enter a time as m:ss or m:ss.SSS."
+      ? "Enter a split time as minutes:seconds, for example 1:30 or 1:30.500."
       : splitMs <= segment.start_ms || splitMs >= segment.end_ms
-        ? "Split time must be strictly between Start and End."
+        ? "Choose a split time after the start time and before the end time."
         : undefined
     : undefined;
   const parts = splitLyricText(line.text, afterWord);
@@ -281,18 +287,7 @@ function SplitDialog({
           className="grid size-8 shrink-0 place-items-center border-0 bg-transparent p-0"
           onClick={close}
         >
-          <svg
-            aria-hidden="true"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          >
-            <path d="m6 6 12 12M18 6 6 18" />
-          </svg>
+          <XIcon weight="fill" size={20} aria-hidden="true" />
         </Button>
       </header>
       <form
@@ -407,10 +402,17 @@ function TimingFields({
   }
 
   function validate(field: keyof typeof drafts, draft: string) {
-    if (!segment || draft === "") return "Both timing endpoints are required.";
+    const label = field === "start_ms" ? "start at" : "end at";
+    if (!draft.trim()) return `Please provide the ${label} time.`;
+    if (!segment) return undefined;
     if (draft === formatTime(segment[field])) return undefined;
     const value = parseTime(draft);
-    if (value === undefined) return "Enter a time as m:ss, for example 1:30.";
+    if (value === undefined)
+      return `Enter the ${label} time as minutes:seconds, for example 1:30.`;
+    if (field === "start_ms" && value >= segment.end_ms)
+      return "Choose a start time before the end time.";
+    if (field === "end_ms" && value <= segment.start_ms)
+      return "Choose an end time after the start time.";
     return timingError({ ...segment, [field]: value }, durationMs);
   }
 
@@ -425,14 +427,15 @@ function TimingFields({
   }
 
   return (
-    <dl className="my-6 grid grid-cols-[auto_1fr] gap-x-4 gap-y-4 text-sm">
+    <dl className="inspector-timing my-6 grid grid-cols-[auto_1fr] gap-x-4 gap-y-4">
       {(["start_ms", "end_ms"] as const).map((field) => {
-        const label = field === "start_ms" ? "Start" : "End";
+        const label = field === "start_ms" ? "Start at" : "End at";
         return (
           <div key={field} className="contents">
-            <dt>{label}</dt>
-            <dd className="m-0 min-w-0 text-right font-mono">
+            <dt className="inspector-timing-label">{label}</dt>
+            <dd className="m-0 min-w-0">
               <Input
+                className="text-center font-mono"
                 aria-label={label}
                 disabled={!segment || saving}
                 placeholder="m:ss"
@@ -456,7 +459,7 @@ function TimingFields({
         );
       })}
       <dt>Duration</dt>
-      <dd className="m-0 min-w-0 text-right font-mono">
+      <dd className="m-0 min-w-0 text-center font-mono">
         {segment?.start_ms !== undefined && segment.end_ms !== undefined
           ? formatTime(segment.end_ms - segment.start_ms)
           : ""}

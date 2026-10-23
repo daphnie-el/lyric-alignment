@@ -148,8 +148,8 @@ test("uses sheet neighbors and rejects conflicting timing without changing conte
   expect(results).toEqual({
     guards: true,
     failures: [
-      { error: "End must be after Start.", unchanged: true },
-      { error: "Merged lyric would overlap another line.", unchanged: true },
+      { error: "Choose an end time after the start time.", unchanged: true },
+      { error: "Merging these lyrics would overlap another line.", unchanged: true },
     ],
     remaining: ["a", "c", "d"], segmentUnchanged: true, undoExact: true, history: 1,
   });
@@ -159,7 +159,7 @@ test("shows timing conflicts in the editor and hides merge for multiple selectio
   await load(page, { ...track, alignment: { segments: [segment("a", 1000, 3000), segment("c", 3000, 4000), segment("b", 4000, 6000)] } });
   await sheet(page).getByRole("button").first().click();
   await merge(page).click();
-  await expect(page.getByRole("alert")).toHaveText("Merged lyric would overlap another line.");
+  await expect(page.getByRole("alert")).toHaveText("Merging these lyrics would overlap another line.");
   await expect(sheet(page).getByRole("button")).toHaveCount(4);
   await expect(save(page)).toBeDisabled();
   await page.getByRole("button", { name: "Move First words", exact: true }).click();

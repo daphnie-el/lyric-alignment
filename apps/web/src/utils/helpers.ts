@@ -22,7 +22,8 @@ export const segmentsToLrc = (
     .map((segment) => {
       const lyric = lyricsMap.get(segment.line_id)!;
 
-      return `${formatLrcTimestamp(segment.start_ms)}${lyric.text}`;
+      const text = lyric.text.replace(/[^\S\r\n]*(?:\r\n|[\r\n])[^\S\r\n]*/g, " ");
+      return `${formatLrcTimestamp(segment.start_ms)}${text}`;
     })
     .join("\n");
 };

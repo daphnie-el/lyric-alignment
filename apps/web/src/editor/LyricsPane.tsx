@@ -1,26 +1,29 @@
 import { useDraggable } from "@dnd-kit/react";
-import { useRef, useState } from "react";
+import { memo, useRef, useState } from "react";
 import { Button } from "../components/Button";
 import { useEditorDispatch, useEditorState } from "../context/EditorContext";
 import { formatTime } from "../utils/formatTime";
 import type { LyricLine, Segment } from "../utils/types";
 import TrackEmptyState from "./TrackEmptyState";
 
-function LyricItem({
-  line,
-  index,
-  segment,
-  selected,
-}: {
+type LyricItemProps = {
   line: LyricLine;
   index: number;
   segment?: Segment;
   selected: boolean;
-}) {
+  editingLocked: boolean;
+};
+
+const LyricItem = memo(function LyricItem({
+  line,
+  index,
+  segment,
+  selected,
+  editingLocked,
+}: LyricItemProps) {
   const dispatch = useEditorDispatch();
-  const { editingLocked: saving } = useEditorState();
   const { ref, isDragging, isDropping } = useDraggable({
-    disabled: saving,
+    disabled: editingLocked,
     id: `lyric-${line.id}`,
     data: {
       lineId: line.id,
@@ -31,7 +34,7 @@ function LyricItem({
   });
   return (
     <Button
-      disabled={saving}
+      disabled={editingLocked}
       ref={ref}
       className="lyric-button flex w-full items-start gap-3 text-left"
       aria-current={selected}
@@ -64,11 +67,16 @@ function LyricItem({
       </span>
     </Button>
   );
-}
+});
 
 export default function LyricsPane() {
-  const { track, selectedLineId, status, editingLocked: saving, interacting } =
-    useEditorState();
+  const {
+    track,
+    selectedLineId,
+    status,
+    editingLocked: saving,
+    interacting,
+  } = useEditorState();
   const dispatch = useEditorDispatch();
   const [draft, setDraft] = useState("");
   const lyricSheetRef = useRef<HTMLTextAreaElement>(null);
@@ -99,6 +107,7 @@ export default function LyricsPane() {
         </label>
         <textarea
           id="lyric-sheet"
+          className="input lyric-text-input"
           ref={lyricSheetRef}
           disabled={editingDisabled}
           placeholder="Enter lyrics, one line per lyric…"
@@ -155,13 +164,17 @@ export default function LyricsPane() {
                 index={index}
                 segment={segment}
                 selected={selectedLineId === line.id}
+                editingLocked={saving}
               />
             </li>
           );
         })}
       </ol>
       {status === "ready" && track && !track.lines.length ? (
-        <p>No lyrics yet. Enter lyrics in the lyric sheet, one line per lyric, then choose Add all lines.</p>
+        <p>
+          No lyrics yet. Enter lyrics in the lyric sheet, one line per lyric,
+          then choose Add all lines.
+        </p>
       ) : null}
     </section>
   );

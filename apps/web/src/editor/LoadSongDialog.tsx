@@ -1,3 +1,4 @@
+import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import {
   useEffect,
   useId,
@@ -239,17 +240,7 @@ function LoadSongDialog() {
           className="grid size-8 shrink-0 place-items-center border-0 bg-transparent p-0"
           onClick={close}
         >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            aria-hidden="true"
-          >
-            <path d="m6 6 12 12M18 6 6 18" />
-          </svg>
+          <XIcon weight="fill" size={20} aria-hidden="true" />
         </Button>
       </div>
       <div className="px-6 pb-6">

@@ -2,26 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useEditorDispatch, useEditorState } from "../context/EditorContext";
 import { Button } from "./Button";
-import {
-  usePlaybackControls,
-  usePlaybackState,
-} from "../context/PlaybackContext";
-import { formatTime } from "../utils/formatTime";
-
-function PlaybackPosition() {
-  const { positionMs, playing } = usePlaybackState();
-  return (
-    <div className="flex items-center justify-between gap-3 text-sm text-(--color-text-muted)">
-      <span>{playing ? "Playing" : "Paused"}</span>
-      <span
-        className="font-mono tabular-nums"
-        aria-label="Current playback position"
-      >
-        {formatTime(positionMs, true)}
-      </span>
-    </div>
-  );
-}
+import { usePlaybackControls } from "../context/PlaybackContext";
 
 const AudioPlayer = ({ src }: { src: string }) => {
   const { attachAudio } = usePlaybackControls();
@@ -55,12 +36,12 @@ const AudioPlayer = ({ src }: { src: string }) => {
   }, [importPlaybackPending, fail]);
 
   return (
-    <div className="w-full min-w-0">
+    <>
       <audio
         ref={attach}
         src={src}
         key={src}
-        controls
+        hidden
         preload="auto"
         onCanPlay={(event) => {
           if (!Number.isFinite(event.currentTarget.duration) || event.currentTarget.duration <= 0) {
@@ -80,14 +61,13 @@ const AudioPlayer = ({ src }: { src: string }) => {
         aria-label="Track playback"
       />
 
-      <PlaybackPosition />
       {error ? (
-        <div className="mt-2 text-sm">
+        <div className="w-full min-w-0 text-sm">
           <p role="alert" className="text-(--color-danger)">{error}</p>
           <Button onClick={() => { failureReported.current = false; setError(null); audioRef.current?.load(); }}>Retry playback</Button>
         </div>
       ) : null}
-    </div>
+    </>
   );
 };
 export default AudioPlayer;

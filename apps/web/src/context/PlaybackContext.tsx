@@ -11,15 +11,22 @@ type PlaybackSnapshot = {
   positionMs: number;
   playing: boolean;
   ready: boolean;
+  scrubbing: boolean;
+  error: string | null;
 };
 
 function createPlaybackStore() {
   let audio: HTMLAudioElement | null = null;
   let frame: number | null = null;
+  let scrub: { resume: boolean } | null = null;
+  let error: string | null = null;
+  let playRequest = 0;
   let snapshot: PlaybackSnapshot = {
     positionMs: 0,
     playing: false,
     ready: false,
+    scrubbing: false,
+    error: null,
   };
   const listeners = new Set<() => void>();
   const events = [
@@ -53,10 +60,12 @@ function createPlaybackStore() {
     if (
       positionMs === snapshot.positionMs &&
       playing === snapshot.playing &&
-      ready === snapshot.ready
+      ready === snapshot.ready &&
+      !!scrub === snapshot.scrubbing &&
+      error === snapshot.error
     )
       return;
-    snapshot = { positionMs, playing, ready };
+    snapshot = { positionMs, playing, ready, scrubbing: !!scrub, error };
     listeners.forEach((listener) => listener());
   }
 
@@ -83,6 +92,9 @@ function createPlaybackStore() {
   // A stable callback ref owns listeners and animation cleanup, including when
   // React replaces the audio element or unmounts the playback session.
   function attachAudio(element: HTMLAudioElement | null) {
+    playRequest++;
+    scrub = null;
+    error = null;
     stopFrame();
     if (audio) {
       events.forEach((event) => audio?.removeEventListener(event, synchronize));
@@ -92,6 +104,34 @@ function createPlaybackStore() {
     if (audio) {
       events.forEach((event) => audio?.addEventListener(event, synchronize));
     }
+    synchronize();
+  }
+
+  async function play() {
+    if (!audio || !snapshot.ready) return;
+    const request = ++playRequest;
+    error = null;
+    synchronize();
+    try {
+      await audio.play();
+    } catch {
+      if (request === playRequest) {
+        error = "Could not start playback. Please try again.";
+        synchronize();
+      }
+    }
+  }
+
+  function pause() {
+    playRequest++;
+    audio?.pause();
+    synchronize();
+  }
+
+  function seek(positionMs: number) {
+    if (!audio || !snapshot.ready || !Number.isFinite(positionMs)) return;
+    const durationMs = audio.duration * 1000;
+    audio.currentTime = Math.max(0, Math.min(positionMs, durationMs)) / 1000;
     synchronize();
   }
 
@@ -106,16 +146,28 @@ function createPlaybackStore() {
         listeners.delete(listener);
       };
     },
-    async play() {
-      await audio?.play();
+    play,
+    pause,
+    seek,
+    stop() {
+      scrub = null;
+      pause();
+      seek(0);
     },
-    pause() {
-      audio?.pause();
+    beginScrub() {
+      if (!snapshot.ready || scrub) return false;
+      scrub = { resume: snapshot.playing };
+      pause();
+      return true;
     },
-    seek(positionMs: number) {
-      if (!audio || !snapshot.ready || !Number.isFinite(positionMs)) return;
-      const durationMs = audio.duration * 1000;
-      audio.currentTime = Math.max(0, Math.min(positionMs, durationMs)) / 1000;
+    endScrub() {
+      const resume = scrub?.resume;
+      scrub = null;
+      synchronize();
+      if (resume) void play();
+    },
+    cancelScrub() {
+      scrub = null;
       synchronize();
     },
   };

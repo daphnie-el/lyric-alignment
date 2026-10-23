@@ -11,6 +11,11 @@ import {
   type PointerEvent,
 } from "react";
 import { Button } from "../components/Button";
+import { TooltipButton } from "../components/TooltipButton";
+import { ArrowBendUpLeftIcon } from "@phosphor-icons/react/dist/csr/ArrowBendUpLeft";
+import { ArrowBendUpRightIcon } from "@phosphor-icons/react/dist/csr/ArrowBendUpRight";
+import { MagnifyingGlassMinusIcon } from "@phosphor-icons/react/dist/csr/MagnifyingGlassMinus";
+import { MagnifyingGlassPlusIcon } from "@phosphor-icons/react/dist/csr/MagnifyingGlassPlus";
 import { useEditorDispatch, useEditorState } from "../context/EditorContext";
 import { usePlaybackControls } from "../context/PlaybackContext";
 import { formatTime } from "../utils/formatTime";
@@ -19,6 +24,8 @@ import { DEFAULT_DURATION_MS, Segment } from "../utils/types";
 import LyricBlock from "./LyricBlock";
 import StampControls from "./StampControls";
 import TimelinePlayhead from "./TimelinePlayhead";
+import SaveRecovery from "./SaveRecovery";
+import PlaybackControls from "./PlaybackControls";
 import TrackEmptyState from "./TrackEmptyState";
 
 export default function Timeline() {
@@ -31,6 +38,7 @@ export default function Timeline() {
     saving,
     editingLocked,
     saveError,
+    saveConflict,
     unsavedChanges,
     interacting: interactionActive,
   } = useEditorState();
@@ -63,7 +71,7 @@ export default function Timeline() {
       !event.isPrimary ||
       interacting.current ||
       (event.target instanceof Element &&
-        event.target.closest(".timeline-block, .timeline-preview"))
+        event.target.closest(".timeline-block, .timeline-preview, .timeline-playhead"))
     )
       return;
     seekGesture.current = { x: event.clientX, y: event.clientY };
@@ -284,53 +292,55 @@ export default function Timeline() {
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button
+          <PlaybackControls />
+          <TooltipButton
             disabled={!track || editingLocked || !past.length}
-            title="Undo (Ctrl+Z / ⌘Z)"
+            aria-label="Undo"
+            tooltip="Undo (Ctrl+Z / ⌘Z)"
             aria-keyshortcuts="Control+z Meta+z"
             onClick={() => {
               if (!interacting.current) dispatch({ type: "undo" });
             }}
           >
-            Undo
-          </Button>
-          <Button
+            <ArrowBendUpLeftIcon weight="fill" size={20} aria-hidden="true" />
+          </TooltipButton>
+          <TooltipButton
             disabled={!track || editingLocked || !future.length}
-            title="Redo (Ctrl+Y / Ctrl+Shift+Z / ⌘⇧Z)"
+            aria-label="Redo"
+            tooltip="Redo (Ctrl+Y / Ctrl+Shift+Z / ⌘⇧Z)"
             aria-keyshortcuts="Control+y Control+Shift+z Meta+Shift+z"
             onClick={() => {
               if (!interacting.current) dispatch({ type: "redo" });
             }}
           >
-            Redo
-          </Button>
+            <ArrowBendUpRightIcon weight="fill" size={20} aria-hidden="true" />
+          </TooltipButton>
+          <TooltipButton
+            disabled={!track || scale <= 20}
+            aria-label="Zoom out"
+            onClick={() => setScale((s) => s / 2)}
+            tooltip="Zoom timeline out"
+          >
+            <MagnifyingGlassMinusIcon weight="fill" size={20} aria-hidden="true" />
+          </TooltipButton>
+          <TooltipButton
+            disabled={!track || scale >= 160}
+            aria-label="Zoom in"
+            onClick={() => setScale((s) => s * 2)}
+            tooltip="Zoom timeline in"
+          >
+            <MagnifyingGlassPlusIcon weight="fill" size={20} aria-hidden="true" />
+          </TooltipButton>
           <Button
             color="primary"
             className=""
             loading={saving}
-            disabled={!track || !unsavedChanges || editingLocked || interactionActive}
+            disabled={!track || !unsavedChanges || editingLocked || interactionActive || !!saveConflict}
             onClick={() => {
               if (!interacting.current) dispatch({ type: "saveStart" });
             }}
           >
             Save alignment
-          </Button>
-
-          <Button
-            disabled={!track || scale <= 20}
-            aria-label="Zoom out"
-            onClick={() => setScale((s) => s / 2)}
-            title="Zoom timeline out"
-          >
-            −
-          </Button>
-          <Button
-            disabled={!track || scale >= 160}
-            aria-label="Zoom in"
-            onClick={() => setScale((s) => s * 2)}
-            title="Zoom timeline in"
-          >
-            +
           </Button>
         </div>
       </div>
@@ -416,7 +426,6 @@ export default function Timeline() {
           </div>
         </div>
       )}
-      {/* <PlaybackSeek durationMs={duration} /> */}
       <StampControls />
       {track ? (
         <div className="border-t border-(--color-border) pt-3 text-xs text-(--color-text-muted)">
@@ -474,7 +483,8 @@ export default function Timeline() {
                 </dt>
                 <dd className="m-0 leading-relaxed">
                   Click the ruler or empty timeline to seek and clear selection,
-                  or use the playback slider.
+                  or drag the playback indicator. Focus the indicator and use arrow keys
+                  to seek by 100 ms, or Home/End to jump to the track boundaries.
                 </dd>
               </div>
             </dl>
@@ -486,6 +496,7 @@ export default function Timeline() {
           {saveError}
         </p>
       ) : null}
+      <SaveRecovery />
       {timingError ? (
         <p role="alert" className="input-error">
           {timingError}

@@ -208,7 +208,9 @@ audio {
     display: block;
     field-sizing: content;
     min-height: 5rem;
-    padding-right: 2.5rem;
+    max-height: 12rem;
+    resize: none;
+    overflow-y: auto;
     line-height: 1.5;
     overflow-wrap: anywhere;
     background: var(--color-elevated);
@@ -415,6 +417,80 @@ audio {
 
   .inspector {
     border-top: 1px solid var(--color-border);
+    font-size: 12px;
+  }
+
+  .inspector .input,
+  .inspector .button {
+    font-size: 12px;
+  }
+
+  .inspector .input-error,
+  .inspector .inspector-hint,
+  .inspector dialog .text-xs {
+    font-size: 11px;
+  }
+
+  .inspector .input-error {
+    text-align: left;
+    font-family: inherit;
+  }
+
+  .inspector-timing .input-field {
+    display: flex;
+    width: 100%;
+  }
+
+  .inspector-timing-label {
+    padding-block: calc(var(--space-2) + 1px);
+  }
+
+  .inspector-action {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+  }
+
+  .inspector-actions {
+    container: inspector-actions / inline-size;
+  }
+
+  .inspector-delete-label {
+    display: none;
+  }
+
+  .inspector-delete {
+    width: 100%;
+    min-width: 36px;
+  }
+
+  @container inspector-actions (min-width: 200px) {
+    .inspector-delete {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding-inline: 10px;
+    }
+
+    .inspector-delete-label {
+      display: inline;
+    }
+  }
+
+  .tooltip {
+    z-index: 100;
+    max-width: min(16rem, calc(100vw - 16px));
+    padding: 6px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-text);
+    color: var(--color-surface);
+    font-size: 11px;
+    line-height: 1.4;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 15%);
   }
 
   @media (min-width: 1100px) {
@@ -473,8 +549,17 @@ audio {
     left: 0;
     width: 2px;
     background: var(--color-primary);
-    pointer-events: none;
-    z-index: 2;
+    cursor: grab;
+    touch-action: none;
+    z-index: 5;
+  }
+  .timeline-playhead[data-scrubbing="true"] { cursor: grabbing; }
+  .timeline-playhead[aria-disabled="true"] { pointer-events: none; }
+  .timeline-playhead:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+  .timeline-playhead::after {
+    content: "";
+    position: absolute;
+    inset: 0 -9px;
   }
   .timeline-playhead::before {
     content: "";
@@ -526,6 +611,7 @@ audio {
   .timeline-block-body small { font: 10px monospace; white-space: nowrap; }
   .timeline-resize {
     position: absolute;
+    z-index: 6;
     top: 0;
     width: 10px;
     height: 100%;
