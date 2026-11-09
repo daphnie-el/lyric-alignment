@@ -70,3 +70,17 @@ In the follow-up recording, total lyric-row renders dropped from 640 to 30, desp
 
 - **Offline editing and synchronization**: Persist local drafts and queue changes while offline, then synchronize on reconnection with explicit conflict handling.
 - **Audio waveform visualization**: Display the waveform beneath lyric blocks to provide an audio reference when placing and adjusting timing boundaries.
+
+## Late Improvements
+
+1.  Move Import logic out of EditorContext
+
+- **Improvement:** Move song import and dialog controls into a dedicated `useSongImport` hook, shared through a separate import context. The global editor reducer handles document replacement after persistence succeeds.
+- **Reason:** Reduce the reducer's responsibilities and keep source checking, confirmation, requests, cancellation, errors, and playback readiness together in one workflow.
+- **Expected outcome:** Clearer state ownership and easier maintenance. Dialog and input changes no longer update editor context; import locking and document replacement still update affected editor consumers. Existing import behavior and protection of local work remain intact.
+
+2. Separate loading and saving from EditorContext
+
+- **Improvement:** Extract loading into `useLoadTrack` and saving/recovery into `useSaveAlignment`, with named request helpers, response validation, and clear timeout/error handling.
+- **Reason:** Separate API requests, errors, and cleanup from editor state management, keeping each workflow focused and the provider readable.
+- **Expected outcome:** Shorter, clearer code that is easier to maintain and test, with local work preserved when a save response is invalid.

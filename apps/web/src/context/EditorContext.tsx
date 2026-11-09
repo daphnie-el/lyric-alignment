@@ -5,17 +5,21 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   type Dispatch,
   type ReactNode,
 } from "react";
-import { toast } from "sonner";
-import { ApiError, api } from "../api";
-import { downloadTrackLrc } from "../utils/helpers";
+import { useSaveAlignment } from "../hooks/useSaveAlignment";
+import { useLoadTrack } from "../hooks/useLoadTrack";
+import { useSongImport } from "../hooks/useSongImport";
 import {
-  isAlignmentSnapshot,
-  isTrackPayload,
-  type SaveConflict,
-} from "../utils/saveConflict";
+  HISTORY_LIMIT,
+  commitSegments,
+  contentSnapshot,
+  hasUnsavedChanges,
+  historyEntry,
+} from "../utils/helpers";
+import type { SaveConflict } from "../utils/saveConflict";
 import { splitLyricText } from "../utils/splitLyric";
 import {
   moveSegments,
@@ -26,76 +30,15 @@ import {
 } from "../utils/timing";
 import {
   DEFAULT_DURATION_MS,
-  EditorTrack,
-  LyricLine,
-  SaveAlignmentRequest,
-  SaveAlignmentResponse,
+  EditorState,
+  HistoryEntry,
   Segment,
   TrackPayload,
+  updateSegmentPayload,
 } from "../utils/types";
-
-// Compare persisted values, independent of server array order or history depth.
-function contentSnapshot(lines: LyricLine[], segments: Segment[]): string {
-  return JSON.stringify({
-    lines: [...lines]
-      .sort((a, b) => a.id.localeCompare(b.id))
-      .map(({ id, index, text }) => ({ id, index, text })),
-    segments: [...segments]
-      .sort((a, b) => a.line_id.localeCompare(b.line_id))
-      .map(({ line_id, start_ms, end_ms }) => ({ line_id, start_ms, end_ms })),
-  });
-}
-
-function hasUnsavedChanges(
-  state: Pick<EditorState, "track" | "savedContent">,
-): boolean {
-  return (
-    !!state.track &&
-    contentSnapshot(state.track.lines, state.track.segments) !==
-      state.savedContent
-  );
-}
-
-type HistoryEntry = Pick<EditorTrack, "lines" | "segments">;
-
-function historyEntry(track: EditorTrack): HistoryEntry {
-  return { lines: track.lines, segments: track.segments };
-}
-
-type EditorState = {
-  status: "loading" | "empty" | "ready" | "error";
-  track: EditorTrack | null;
-  error: string | null;
-  selectedLineId: string | null;
-  selectedTimelineIds: string[];
-  retryCount: number;
-  timingError: string | null;
-  saving: boolean;
-  importing: boolean;
-  importDialogOpen: boolean;
-  importPlaybackPending: boolean;
-  importError: string | null;
-  exportAfterSave: boolean;
-  saveError: string | null;
-  saveConflict: SaveConflict | null;
-  saveOperation: "save" | "reload" | "recover";
-  saveVersion: number | null;
-  savedContent: string | null;
-  interacting: boolean;
-  past: HistoryEntry[];
-  future: HistoryEntry[];
-};
-type updateSegmentPayload = {
-  lineId: string;
-  field: "start_ms" | "end_ms";
-  value: number | undefined;
-};
+import { SongImportContext } from "./SongImportContext";
 
 type EditorAction =
-  | { type: "openImport" | "closeImport" | "importStart" }
-  | { type: "importStored"; payload: TrackPayload }
-  | { type: "importFailure"; error: string; trackId?: string }
-  | { type: "importReady"; trackId: string }
   | { type: "undo" | "redo" }
   | { type: "saveStart"; exportAfterSave?: boolean }
   | { type: "saveFailure"; error: string; conflict?: SaveConflict }
@@ -106,7 +49,12 @@ type EditorAction =
   | { type: "loadFailure"; error: string }
   | { type: "retry" }
   | { type: "selectLine"; id: string | null }
-  | { type: "restoreSelection"; trackId: string; selectedLineId: string | null; selectedTimelineIds: string[] }
+  | {
+      type: "restoreSelection";
+      trackId: string;
+      selectedLineId: string | null;
+      selectedTimelineIds: string[];
+    }
   | { type: "toggleTimelineLine"; id: string }
   | { type: "moveSegments"; lineIds: string[]; offsetMs: number }
   | { type: "removeSegment"; lineId: string }
@@ -155,10 +103,6 @@ export const initialState: EditorState = {
   retryCount: 0,
   timingError: null,
   saving: false,
-  importing: false,
-  importDialogOpen: false,
-  importPlaybackPending: false,
-  importError: null,
   exportAfterSave: false,
   saveError: null,
   saveConflict: null,
@@ -170,88 +114,14 @@ export const initialState: EditorState = {
   future: [],
 };
 
-const HISTORY_LIMIT = 100;
-
-function commitSegments(
-  state: EditorState,
-  segments: Segment[],
-  selectedLineId: string | null,
-  selectedTimelineIds = selectedLineId &&
-  segments.some((segment) => segment.line_id === selectedLineId)
-    ? [selectedLineId]
-    : [],
-): EditorState {
-  const track = state.track;
-  if (!track) return state;
-  const changed =
-    segments.length !== track.segments.length ||
-    segments.some((segment, index) => {
-      const previous = track.segments[index];
-      return (
-        !previous ||
-        segment.line_id !== previous.line_id ||
-        segment.start_ms !== previous.start_ms ||
-        segment.end_ms !== previous.end_ms
-      );
-    });
-  return {
-    ...state,
-    selectedLineId,
-    selectedTimelineIds,
-    timingError: null,
-    track: changed ? { ...track, segments } : track,
-    past: changed
-      ? [...state.past, historyEntry(track)].slice(-HISTORY_LIMIT)
-      : state.past,
-    future: changed ? [] : state.future,
-  };
-}
-
 export function reducer(state: EditorState, action: EditorAction): EditorState {
+  // Guard every editing path, including keyboard and queued interaction events.
   if (
-    state.importing &&
-    !["importStored", "importFailure", "importReady"].includes(action.type)
+    state.saving &&
+    !["loadSuccess", "loadEmpty", "saveFailure"].includes(action.type)
   )
     return state;
-  // Guard every editing path, including keyboard and queued interaction events.
-  if (state.saving && !["loadSuccess", "loadEmpty", "saveFailure"].includes(action.type))
-    return state;
   switch (action.type) {
-    case "openImport":
-      if (state.interacting || state.status === "loading") return state;
-      return { ...state, importDialogOpen: true, importError: null };
-    case "closeImport":
-      return { ...state, importDialogOpen: false, importError: null };
-    case "importStart":
-      if (!state.importDialogOpen || state.interacting) return state;
-      return { ...state, importing: true, importError: null };
-    case "importStored":
-      return {
-        ...reducer(
-          { ...state, importing: false },
-          { type: "loadSuccess", payload: action.payload },
-        ),
-        importing: true,
-        importPlaybackPending: true,
-      };
-    case "importFailure":
-      if (action.trackId && action.trackId !== state.track?.id) return state;
-      return {
-        ...state,
-        importing: false,
-        importPlaybackPending: false,
-        importError: action.error,
-      };
-    case "importReady":
-      if (!state.importPlaybackPending || action.trackId !== state.track?.id)
-        return state;
-      return {
-        ...state,
-        importing: false,
-        importPlaybackPending: false,
-        importDialogOpen: false,
-        importError: null,
-      };
     case "stampLine": {
       const track = state.track;
       if (!track || state.status !== "ready" || state.interacting) return state;
@@ -282,7 +152,11 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
         ? state
         : { ...state, interacting: action.active };
     case "replaceServer":
-      if (!state.track || state.interacting || state.saveConflict?.kind !== "version")
+      if (
+        !state.track ||
+        state.interacting ||
+        state.saveConflict?.kind !== "version"
+      )
         return state;
       return {
         ...state,
@@ -331,7 +205,7 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
     case "redo": {
       if (!state.track) return state;
       const source = action.type === "undo" ? state.past : state.future;
-      const entry = source.at(-1);
+      const entry: HistoryEntry | undefined = source.at(-1);
       if (!entry) return state;
       const { lines, segments } = entry;
       const selectedTimelineIds = state.selectedTimelineIds.filter((id) =>
@@ -433,8 +307,11 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
       const track = state.track;
       return {
         ...state,
-        selectedLineId: track.lines.some((line) => line.id === action.selectedLineId)
-          ? action.selectedLineId : null,
+        selectedLineId: track.lines.some(
+          (line) => line.id === action.selectedLineId,
+        )
+          ? action.selectedLineId
+          : null,
         selectedTimelineIds: action.selectedTimelineIds.filter((id) =>
           track.segments.some((segment) => segment.line_id === id),
         ),
@@ -598,20 +475,29 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
         track.lines.some((line) => line.id === action.newId)
       )
         return state;
-      const position = track.lines.findIndex((line) => line.id === action.lineId);
+      const position = track.lines.findIndex(
+        (line) => line.id === action.lineId,
+      );
       const original = track.lines[position];
       if (!original) return state;
       const parts = splitLyricText(original.text, action.afterWord);
       if (!parts) return state;
-      const segment = track.segments.find((item) => item.line_id === original.id);
+      const segment = track.segments.find(
+        (item) => item.line_id === original.id,
+      );
       const splitMs = action.splitMs;
       if (
-        segment && (
-          splitMs === undefined || !Number.isSafeInteger(splitMs) ||
-          splitMs <= segment.start_ms || splitMs >= segment.end_ms
-        )
+        segment &&
+        (splitMs === undefined ||
+          !Number.isSafeInteger(splitMs) ||
+          splitMs <= segment.start_ms ||
+          splitMs >= segment.end_ms)
       )
-        return { ...state, timingError: "Choose a split time after the start time and before the end time." };
+        return {
+          ...state,
+          timingError:
+            "Choose a split time after the start time and before the end time.",
+        };
       const lines = [
         ...track.lines.slice(0, position),
         { ...original, text: parts[0] },
@@ -621,16 +507,21 @@ export function reducer(state: EditorState, action: EditorAction): EditorState {
           index: original.index + 2 + offset,
         })),
       ];
-      const segments = segment && splitMs !== undefined
-        ? track.segments.flatMap((item) =>
-            item.line_id === original.id
-              ? [
-                  { ...item, end_ms: splitMs },
-                  { line_id: action.newId, start_ms: splitMs, end_ms: item.end_ms },
-                ]
-              : [item],
-          )
-        : track.segments;
+      const segments =
+        segment && splitMs !== undefined
+          ? track.segments.flatMap((item) =>
+              item.line_id === original.id
+                ? [
+                    { ...item, end_ms: splitMs },
+                    {
+                      line_id: action.newId,
+                      start_ms: splitMs,
+                      end_ms: item.end_ms,
+                    },
+                  ]
+                : [item],
+            )
+          : track.segments;
       return {
         ...state,
         track: { ...track, lines, segments },
@@ -767,56 +658,49 @@ const DispatchContext = createContext<Dispatch<EditorAction> | undefined>(
   undefined,
 );
 
-function conflictMessage(conflict: SaveConflict): string {
-  if (conflict.kind === "track")
-    return "The current song changed in another session. Your local changes are still here. Load the latest song to continue.";
-  if (conflict.kind === "unknown")
-    return "Another session saved a newer version, but its state could not be retrieved. Your changes are still here. Retry recovery or load the latest song.";
-  return "Another session saved a newer version. Your changes are still here and have not been saved. Choose how to resolve the conflict.";
-}
-
-async function readSaveConflict(trackId: string, signal: AbortSignal): Promise<SaveConflict> {
-  try {
-    const latest = await api<unknown>("/api/v1/track", { signal });
-    if (isTrackPayload(latest)) return latest.id === trackId
-      ? { kind: "version", snapshot: latest }
-      : { kind: "track" };
-  } catch {
-    // Keep the local draft even when recovery information is unavailable.
-  }
-  return { kind: "unknown" };
-}
-
 export function EditorProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initialState);
-  useEffect(() => {
-    const controller = new AbortController();
-    api<TrackPayload>("/api/v1/track", { signal: controller.signal })
-      .then((payload) => {
-        if (!controller.signal.aborted)
-          dispatch({ type: "loadSuccess", payload });
-      })
-      .catch((error: unknown) => {
-        if (!controller.signal.aborted) {
-          if (
-            error instanceof ApiError &&
-            error.status === 404 &&
-            error.body &&
-            typeof error.body === "object" &&
-            "error" in error.body &&
-            error.body.error === "no_current_track"
-          ) {
-            dispatch({ type: "loadEmpty" });
-            return;
-          }
-          dispatch({
-            type: "loadFailure",
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-      });
-    return () => controller.abort();
-  }, [state.retryCount]);
+  const [state, reducerDispatch] = useReducer(reducer, initialState);
+  const importLockRef = useRef(false);
+  const dispatch = useCallback<Dispatch<EditorAction>>((action) => {
+    if (!importLockRef.current) reducerDispatch(action);
+  }, []);
+  const onStored = useCallback((payload: TrackPayload) => {
+    // Only the import workflow may replace the document while import is locked.
+    reducerDispatch({ type: "loadSuccess", payload });
+  }, []);
+  const songImport = useSongImport({
+    track: state.track,
+    canImport:
+      state.status !== "loading" && !state.saving && !state.interacting,
+    importLockRef,
+    onStored,
+  });
+  const { importing } = songImport;
+
+  const onLoadSuccess = useCallback(
+    (payload: TrackPayload) => {
+      dispatch({ type: "loadSuccess", payload });
+    },
+    [dispatch],
+  );
+
+  const onLoadEmpty = useCallback(() => {
+    dispatch({ type: "loadEmpty" });
+  }, [dispatch]);
+
+  const onLoadFailure = useCallback(
+    (error: string) => {
+      dispatch({ type: "loadFailure", error });
+    },
+    [dispatch],
+  );
+
+  useLoadTrack({
+    retryCount: state.retryCount,
+    onSuccess: onLoadSuccess,
+    onEmpty: onLoadEmpty,
+    onFailure: onLoadFailure,
+  });
 
   const unsavedChanges = useMemo(
     () =>
@@ -830,148 +714,44 @@ export function EditorProvider({ children }: { children: ReactNode }) {
     () => ({
       ...state,
       unsavedChanges,
-      editingLocked: state.saving || state.importing,
+      editingLocked: state.saving || importing,
     }),
-    [state, unsavedChanges],
+    [state, unsavedChanges, importing],
   );
   useEffect(() => {
-    if (!unsavedChanges && !state.importing) return;
+    if (!unsavedChanges && !importing) return;
     function warnBeforeLeaving(event: BeforeUnloadEvent) {
       event.preventDefault();
       event.returnValue = "";
     }
     window.addEventListener("beforeunload", warnBeforeLeaving);
     return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
-  }, [unsavedChanges, state.importing]);
+  }, [unsavedChanges, importing]);
 
-  const { saving, track, exportAfterSave, saveOperation, saveVersion } = state;
-
-  const alignTrack = useCallback(
-    async (signal: AbortSignal) => {
-      if (!track) return;
-      if (saveOperation === "recover") {
-        const conflict = await readSaveConflict(track.id, signal);
-        if (!signal.aborted)
-          dispatch({ type: "saveFailure", conflict, error: conflictMessage(conflict) });
-        return;
-      }
-      if (saveOperation === "reload") {
-        try {
-          const payload = await api<unknown>("/api/v1/track", { signal });
-          if (signal.aborted) return;
-          if (!isTrackPayload(payload)) throw new Error("Invalid track response");
-          const normalized = normalizeSegments(
-            payload.alignment?.segments ?? [],
-            Math.round(payload.duration_seconds * 1000),
-            new Set(payload.lines.map((line) => line.id)),
-          );
-          if (normalized.error) throw new Error(normalized.error);
-          dispatch({ type: "loadSuccess", payload });
-        } catch (error) {
-          if (signal.aborted) return;
-          if (
-            error instanceof ApiError && error.status === 404 &&
-            typeof error.body === "object" && error.body !== null &&
-            "error" in error.body && error.body.error === "no_current_track"
-          ) {
-            dispatch({ type: "loadEmpty" });
-          } else {
-            dispatch({
-              type: "saveFailure",
-              error: "Could not load the latest song. Your local changes are still here. Try Load latest again.",
-            });
-          }
-        }
-        return;
-      }
-      const body: SaveAlignmentRequest = {
-        track_id: track.id,
-        version: saveVersion ?? track.version,
-        lines: track.lines,
-        segments: track.segments,
-      };
-      let saved: SaveAlignmentResponse;
-      try {
-        saved = await api<SaveAlignmentResponse>("/api/v1/track/alignment", {
-          method: "PUT",
-          body: JSON.stringify(body),
-          signal,
-        });
-      } catch (error: unknown) {
-        if (signal.aborted) return;
-        if (error instanceof ApiError && error.status === 409) {
-          let conflict: SaveConflict;
-          const body = error.body;
-          if (body && typeof body === "object" && "error" in body && body.error === "track_conflict") {
-            conflict = { kind: "track" };
-          } else if (body && typeof body === "object" && "error" in body &&
-            body.error === "version_conflict" && isAlignmentSnapshot(body)) {
-            conflict = { kind: "version", snapshot: body };
-          } else {
-            conflict = await readSaveConflict(track.id, signal);
-            if (signal.aborted) return;
-          }
-          dispatch({ type: "saveFailure", conflict, error: conflictMessage(conflict) });
-        } else {
-          dispatch({
-            type: "saveFailure",
-            error: "Could not save your changes. Your changes are still here and remain unsaved. Check your connection and try Save again.",
-          });
-        }
-        return;
-      }
-      if (signal.aborted) return;
-      dispatch({
-        type: "loadSuccess",
-        payload: {
-          ...track,
-          duration_seconds: track.durationMs / 1000,
-          ...saved,
-        },
-      });
-      toast.success("Changes saved successfully");
-      if (exportAfterSave) {
-        try {
-          downloadTrackLrc({
-            title: track.title,
-            lines: saved.lines,
-            segments: saved.alignment?.segments ?? [],
-          });
-        } catch {
-          toast.error(
-            "Your changes were saved, but the download could not start. Try Export LRC again.",
-          );
-        }
-      }
+  const onSaveFailure = useCallback(
+    (error: string, conflict?: SaveConflict) => {
+      dispatch({ type: "saveFailure", error, conflict });
     },
-    [track, exportAfterSave, saveOperation, saveVersion],
+    [dispatch],
   );
 
-  useEffect(() => {
-    if (!saving || !track) return;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => {
-      controller.abort();
-      dispatch({
-        type: "saveFailure",
-        error: saveOperation === "reload"
-          ? "Loading the latest song timed out. Your local changes are still here. Try Load latest again."
-          : saveOperation === "recover"
-            ? "Checking the latest version timed out. Your local changes are still here. Try Retry recovery again."
-            : "Saving timed out. The server may have saved your changes, but we could not confirm it. Your local changes are still here. Try saving again.",
-      });
-    }, 30000);
-    void alignTrack(controller.signal).finally(() => clearTimeout(timeout));
-    return () => {
-      clearTimeout(timeout);
-      controller.abort();
-    };
-  }, [saving, track, alignTrack, saveOperation]);
+  useSaveAlignment({
+    saving: state.saving,
+    track: state.track,
+    operation: state.saveOperation,
+    version: state.saveVersion,
+    exportAfterSave: state.exportAfterSave,
+    onSuccess: onLoadSuccess,
+    onEmpty: onLoadEmpty,
+    onFailure: onSaveFailure,
+  });
 
   return (
     <DispatchContext.Provider value={dispatch}>
       <StateContext.Provider value={contextState}>
-        {children}
+        <SongImportContext.Provider value={songImport}>
+          {children}
+        </SongImportContext.Provider>
       </StateContext.Provider>
     </DispatchContext.Provider>
   );

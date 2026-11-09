@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Button } from "../components/Button";
 import { useEditorState } from "../context/EditorContext";
 import { usePlaybackReady } from "../context/PlaybackContext";
-import { useStampLine } from "../utils/useStampLine";
+import { useStampLine } from "../hooks/useStampLine";
 
 const interactiveSelector = [
   "button",

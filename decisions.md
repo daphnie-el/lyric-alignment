@@ -5,12 +5,9 @@ The document records how the lyric-alignment editor evolved, separating user cho
 ## 1. Editor shell and Context foundation (initial implementation)
 
 - Follow the wireframe's toolbar, lyrics, timeline, inspector, and readout regions. Use existing Tailwind utilities and theme variables so the shell respects the current light/dark theme without adding dependencies.
-- Keep loaded track data, request status, and lyric selection in a reducer, exposed through separate state and dispatch contexts. Transient controls and native audio playback do not need global state yet.
-- Normalize API duration from seconds to integer milliseconds on load. Retain API line identifiers, saved segments, and version; derive selection details instead of duplicating them in state.
-- Start without a selected line. The readout explicitly previews the selection rather than claiming playback synchronization. The initial timeline placeholder has since been replaced by the editable timeline described below.
-- Initially defer audio import, waveform decoding, timing edits, saving, export, and synchronized karaoke. Timeline timing edits are now implemented; the other deferred capabilities remain outside this change.
-- On desktop, constrain pane heights and scroll the lyric list independently. On narrow screens, stack panes in document order and bound the lyric list height so the other regions remain reachable.
-- Abort obsolete track requests during cleanup and retry; keep errors and retry inside the shell so the layout remains usable when the API is unavailable.
+- **Decision AI took:** Use a reducer with separate state and dispatch contexts, derive selection details, and adapt the pane layout for desktop and mobile.
+- **Why:** Keep document updates predictable without duplicating data or adding a state library.
+- **Cost / alternatives considered:** State consumers still subscribe broadly. Local component state handles drafts and previews; a new store was unnecessary for the current scope.
 
 ## 2. Draggable lyrics and editable timeline: user choices and agent implementation decisions
 
@@ -70,10 +67,9 @@ Saving supersedes the earlier in-memory-only scope recorded above.
 
 ## 4. Audio playback alignment — Stage 1
 
-- Use the existing theme color for a thin playhead and marker, with pointer events disabled so existing drag and resize interactions remain available. Expose current time as labelled text without a live announcement on every frame.
-- Add browser tests using a generated silent WAV with a different duration, lyric count, and identifiers. This exercises the real media clock and native keyboard controls rather than simulating playback events.
-- Timeline click-to-seek, keyboard seeking, and stamping remain for the next review stages.
-- Verification: typecheck, lint, and production build passed. All three playback browser tests passed, along with the 29 existing timeline and save tests. Playback tests cover native Space play/pause, paused seeking, track completion, zoom/scroll positioning, unchanged selection, clean save state, and playback continuity after saving.
+- **Decision AI took:** Keep the native audio clock in a separate playback store, isolate frame subscriptions, and key sessions by track ID and audio URL. Use pointer capture for scrubbing and scroll only when the playhead needs visibility.
+- **Why:** Preserve playback across saves, reset it on song replacement, and avoid updating editor state on every frame.
+- **Cost / alternatives considered:** Requires listener, animation, and gesture cleanup. The interactive playhead superseded native controls and a separate seek slider; resize handles take priority where hit areas overlap.
 
 ## 5. Audio playback alignment — Stage 2
 
@@ -151,20 +147,9 @@ This supersedes Stage 3's provisional three-second duration and consecutive-stam
 
 ### Choices made by the user
 
-- Export lyrics through the existing LRC download helper. “Missing lines” means lyric lines already added to the sheet that have no timeline placement; unadded draft text is outside this warning.
-- When some lines are untimed, show their count and ask whether to export only timed lines or keep editing. Export immediately when all lines are timed.
-- When exporting unsaved edits, offer Save and export, Export without saving, and Keep editing. Combine this choice with the untimed-line warning when applicable; either export choice includes only timed lines.
-- Determine whether saving is needed by comparing current lyric text and timings with the saved baseline through `unsavedChanges`.
-- Use `downloadLrc` and `segmentsToLrc`, preserving chronological timestamp ordering, centisecond formatting, and UTF-8 lyric text. Trim the track title and replace filesystem-invalid characters with underscores for the filename; fall back to `lyrics.lrc` for an empty title
-
-### Implementation choices proposed by the agent and approved in the plan
-
-- Read lyrics and segments from the current editor track, including unsaved edits. Match lyric IDs against segment `line_id` values to derive timed and untimed counts without duplicating editor state.
-- Use a native modal dialog titled “Some lines aren’t timed yet”, with correctly pluralized counts and “Keep editing” and “Export N timed lines” actions. Initially focus Keep editing, contain keyboard focus, support Escape dismissal, and restore focus to Export LRC on close. Keep modal state local and prevent editor shortcuts from changing the document behind it.
-- Disable export when the track is unavailable, no lyrics are timed, or a timeline interaction is active. When no lyrics are timed, show “Time at least one lyric line to export.”
-- Reuse `downloadLrc` and `segmentsToLrc`, preserving chronological timestamp ordering, centisecond formatting, and UTF-8 lyric text. Trim the track title and replace filesystem-invalid characters with underscores for the filename; fall back to `lyrics.lrc` for an empty title.
-- Keep the existing backend and public data types unchanged. Export does not save or alter editor contents.
-- Keep the dialog's initial focus on Keep editing, keyboard focus containment, Escape dismissal, focus restoration, and editor shortcut isolation. Disable export during saving and active timeline interactions; cancellation performs neither saving nor downloading.
+- **Decision AI took:** Derive timed counts from current document data, use a native confirmation dialog, sanitize filenames, and flatten multiline text only during serialization.
+- **Why:** Export current edits without duplicating state or changing stored lyrics; preserve chronological timestamps and Unicode.
+- **Cost / alternatives considered:** LRC excludes audio and untimed lyrics. Starting a download cannot confirm that the user saved it; a failed download does not undo a confirmed server save
 
 ## 8. Timeline playhead visibility
 
@@ -174,6 +159,12 @@ This supersedes Stage 3's provisional three-second duration and consecutive-stam
 - Verification: the playback/timeline run passed 38 of 40 tests; both failures reference the existing commented-out playback slider. The new scroll tests pass. Typecheck, lint, production build, and whitespace checks pass.
 
 ## 9. Load Song — Phase 1: track API and storage
+
+**Summary**
+
+- **Decision AI took:** Stream uploads with Busboy, use generated filenames and bounded validation, and replace the current track in one database transaction. Require `track_id` on alignment saves.
+- **Why:** Avoid buffering whole songs, preserve the old track on failed storage, and prevent stale edits from overwriting a replacement song.
+- **Cost / alternatives considered:** Adds a dependency and changes the save request contract. Header checks cannot prove decodability; duration comes from the client. URL sources remain external links, and replaced uploads are not a track library.
 
 ### User decisions
 
@@ -190,8 +181,6 @@ This supersedes Stage 3's provisional three-second duration and consecutive-stam
 - Validate MP3/WAV/Ogg/M4A extensions and basic format headers. Validate positive finite duration and title; HTTP(S) URLs cannot contain credentials. Direct URLs may lack a file extension. The server never fetches them; browser playback validation is deferred to Phase 2. Header checks cannot prove full-file decodability, and duration is supplied by the client.
 - Insert the replacement and cascade-delete the previous database state in one SQLite transaction, without schema changes or resetting existing data. Insert before deleting so each replacement gets a new numeric identity. Delete the previous generated audio file after commit; never delete bundled demo audio. Failed, malformed, oversized, or interrupted uploads remove their staged file and preserve the current song.
 - Require `track_id` alongside `version`, `lines`, and `segments` in alignment PUTs. The current client sends this field; stale track IDs receive `409 track_conflict`, and stale versions retain `409 version_conflict`. Empty lyric arrays are now valid. This is an intentional request-contract change for other API consumers.
-- `GET /api/v1/track` returns `404 no_current_track` when empty. Startup still seeds the demo by default and preserves an existing imported track. `SEED_ON_START=false` allows an empty workspace and isolated integration tests.
-- Uploaded audio uses the existing unauthenticated asset surface with range support, including suffix ranges, and M4A MIME support. Authentication remains required for track reads and writes.
 
 Phase 2: import dialog and playback
 
@@ -271,8 +260,8 @@ This supersedes the earlier native player controls, separate playback slider, an
 - Use an action-row container query to show Delete's label at an available width of at least 200px; hide the label below that threshold. Let its tooltip wrapper grow and make the button fill the wrapper, with a 36px minimum width. This follows the inspector's available space instead of the viewport width. Keep Delete's danger styling and tooltip in both forms.
 - Verification: the initial refinements passed 89 targeted browser tests; Floating UI integration passed 47; filled icons passed 44. The final responsive Delete change passed both desktop/mobile inspector checks and the production build. Typecheck and lint passed for the icon/tooltip changes, and whitespace checks passed. Responsive checks cover textarea growth, capping, scrolling and shrinking; action alignment; tooltips on hover/focus and Escape dismissal; and Delete's label at wide and compact container widths.
 
-## Shared browser-test walkthrough dismissal
+# Loading and saving hooks
 
-- The user approved preventing the walkthrough from opening in ordinary browser tests by setting its existing localStorage dismissal flag before app startup. Production walkthrough behavior stays unchanged.
-- Export a reusable `skipWalkthrough(page)` helper and override the shared Playwright page fixture to install its initialization script automatically. Every browser spec imports this fixture so initial navigation, imports, and reloads receive the same setup in their isolated browser contexts.
-- Default the `skipWalkthrough` option to `true`; walkthrough-specific tests can use `test.use({ skipWalkthrough: false })` to exercise first-time behavior.
+- **Decision AI took:** Integrate the user-created `useLoadTrack`, extract `useSaveAlignment`, and use stable callbacks to map outcomes to reducer actions. Separate network helpers from general-purpose helpers.
+- **Why:** Keep requests and cleanup out of the provider, prevent unrelated renders from restarting requests, and let Node tests import pure helpers without loading browser API code.
+- **Cost / alternatives considered:** Adds explicit callback wiring and module boundaries. Document state, saved baselines, conflicts, and history remain reducer-owned; extraction does not itself narrow editor subscriptions.

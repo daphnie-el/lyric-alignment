@@ -285,7 +285,6 @@ test("reducer rejects invalid operations and preserves exact history and unrelat
       { ...state, status: "loading" as const },
       { ...state, status: "error" as const },
       { ...state, saving: true },
-      { ...state, importing: true },
       { ...state, interacting: true },
       { ...state, selectedTimelineIds: ["a", "b"] },
       { ...state, selectedLineId: "missing" },

@@ -1,3 +1,5 @@
+import { SaveConflict } from "./saveConflict";
+
 export type Segment = { line_id: string; start_ms: number; end_ms: number };
 
 export const DEFAULT_DURATION_MS = 3000;
@@ -37,3 +39,30 @@ export type SaveAlignmentResponse = Pick<
   TrackPayload,
   "version" | "lines" | "alignment"
 >;
+
+export type HistoryEntry = Pick<EditorTrack, "lines" | "segments">;
+
+export type EditorState = {
+  status: "loading" | "empty" | "ready" | "error";
+  track: EditorTrack | null;
+  error: string | null;
+  selectedLineId: string | null;
+  selectedTimelineIds: string[];
+  retryCount: number;
+  timingError: string | null;
+  saving: boolean;
+  exportAfterSave: boolean;
+  saveError: string | null;
+  saveConflict: SaveConflict | null;
+  saveOperation: "save" | "reload" | "recover";
+  saveVersion: number | null;
+  savedContent: string | null;
+  interacting: boolean;
+  past: HistoryEntry[];
+  future: HistoryEntry[];
+};
+export type updateSegmentPayload = {
+  lineId: string;
+  field: "start_ms" | "end_ms";
+  value: number | undefined;
+};

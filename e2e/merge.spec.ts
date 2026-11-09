@@ -117,7 +117,7 @@ test("uses sheet neighbors and rejects conflicting timing without changing conte
     const blockedStates = [
       loaded, { ...selected, selectedLineId: "missing" },
       { ...selected, status: "loading" as const }, { ...selected, status: "error" as const },
-      { ...selected, saving: true }, { ...selected, importing: true },
+      { ...selected, saving: true },
       { ...selected, interacting: true }, { ...selected, selectedTimelineIds: ["a", "c"] },
     ];
     const last = reducer(loaded, { type: "selectLine", id: "d" });

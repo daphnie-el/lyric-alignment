@@ -10,11 +10,12 @@ export function timingError(
     segment.start_ms < 0
   )
     return "Choose a start time at or after the beginning of the song.";
-  if (segment.end_ms <= segment.start_ms) return "Choose an end time after the start time.";
-  if (segment.end_ms > durationMs)
-    return "Choose an end time within the song.";
+  if (segment.end_ms <= segment.start_ms)
+    return "Choose an end time after the start time.";
+  if (segment.end_ms > durationMs) return "Choose an end time within the song.";
 }
 
+// an unfair assumption i made is that there would be no duplicate lyrics while in reality there could be duplicate lyrics in a song, and we need to handle this, in reality the user should not have to type the chorus and bridges multiple times.
 export function normalizeSegments(
   segments: Segment[],
   durationMs: number,
@@ -140,9 +141,10 @@ export function moveSegments(
   if (!Number.isSafeInteger(offsetMs))
     return { error: "Move lyrics by a whole number of milliseconds." };
   const selected = new Set(lineIds);
+  const existingIds = new Set(segments.map((segment) => segment.line_id));
   if (
     !selected.size ||
-    [...selected].some((id) => !segments.some((s) => s.line_id === id))
+    lineIds.some((id) => !existingIds.has(id))
   )
     return { error: "Select placed lyrics to move." };
   const result = segments

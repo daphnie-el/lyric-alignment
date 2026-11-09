@@ -3,58 +3,38 @@ import {
   useEffect,
   useId,
   useRef,
-  useState,
-  type FormEvent,
   type KeyboardEvent,
 } from "react";
-import { toast } from "sonner";
-import { ApiError, api } from "../api";
 import { Button } from "../components/Button";
 import { DialogFooter } from "../components/DialogFooter";
-import { useEditorDispatch, useEditorState } from "../context/EditorContext";
-import { downloadTrackLrc } from "../utils/helpers";
-import { probeAudio } from "../utils/probeAudio";
-import type { TrackPayload } from "../utils/types";
-
-type Candidate = { source: File | string; durationSeconds: number };
+import { useEditorState } from "../context/EditorContext";
+import { useSongImportContext } from "../context/SongImportContext";
 
 /** Outside the keyed playback session so the dialog survives track replacement. */
 export default function SongImport() {
-  const { importDialogOpen } = useEditorState();
-  return importDialogOpen ? <LoadSongDialog /> : null;
+  const { dialogOpen } = useSongImportContext();
+  return dialogOpen ? <LoadSongDialog /> : null;
 }
 
 function LoadSongDialog() {
   const sourceFormId = useId();
+  const { track, unsavedChanges } = useEditorState();
   const {
-    track,
-    unsavedChanges,
-    importing,
-    importPlaybackPending,
-    importError,
-  } = useEditorState();
-  const dispatch = useEditorDispatch();
+    importing, importPlaybackPending, sourceType, file, url, candidate,
+    probing, error: message, setSourceType, setFile, setUrl, setError,
+    close, chooseAnotherSource, checkSource, continueImport,
+  } = useSongImportContext();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const requestRef = useRef<AbortController | null>(null);
-  const busyRef = useRef(false);
-  const [sourceType, setSourceType] = useState<"file" | "url">("url");
-  const [file, setFile] = useState<File | null>(null);
-  const [url, setUrl] = useState("");
-  const [candidate, setCandidate] = useState<Candidate | null>(null);
-  const [probing, setProbing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const timedIds = new Set(track?.segments.map((segment) => segment.line_id));
   const timed =
     track?.lines.filter((line) => timedIds.has(line.id)).length ?? 0;
   const untimed = (track?.lines.length ?? 0) - timed;
-  const message = error ?? importError;
 
   useEffect(() => {
     const dialog = dialogRef.current;
     dialog?.showModal();
     return () => {
-      requestRef.current?.abort();
       dialog?.close();
       document.getElementById("load-song")?.focus();
     };
@@ -63,131 +43,6 @@ function LoadSongDialog() {
   useEffect(() => {
     if (candidate) headingRef.current?.focus();
   }, [candidate]);
-
-  function reportError(value: unknown) {
-    const body = value instanceof ApiError ? value.body : null;
-    const hint =
-      body &&
-      typeof body === "object" &&
-      "hint" in body &&
-      typeof body.hint === "string"
-        ? body.hint
-        : null;
-    const text =
-      hint ??
-      (value instanceof ApiError
-        ? "Could not store the song. Try again."
-        : value instanceof Error
-          ? value.message
-          : "Could not load the song. Try again.");
-    setError(text);
-    toast.error(text);
-  }
-
-  async function persist(next: Candidate) {
-    if (importing) return;
-    dispatch({ type: "importStart" });
-    const controller = new AbortController();
-    requestRef.current = controller;
-    let timedOut = false;
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      controller.abort();
-    }, 120000);
-    try {
-      let body: FormData | string;
-      if (next.source instanceof File) {
-        body = new FormData();
-        body.append("file", next.source);
-        body.append("duration_seconds", String(next.durationSeconds));
-      } else {
-        body = JSON.stringify({
-          audio_url: next.source,
-          duration_seconds: next.durationSeconds,
-        });
-      }
-      const payload = await api<TrackPayload>("/api/v1/track", {
-        method: "POST",
-        body,
-        signal: controller.signal,
-      });
-      if (!controller.signal.aborted)
-        dispatch({ type: "importStored", payload });
-    } catch (value) {
-      if (controller.signal.aborted && !timedOut) return;
-      const text =
-        value instanceof ApiError
-          ? "Could not store the song. Your current work is still here. Try again."
-          : timedOut
-            ? "Storing the song timed out. Your work is still here; retry or reload to check whether it was stored."
-            : "Could not confirm the song was stored. Your work is still here; check your connection and retry or reload.";
-      dispatch({ type: "importFailure", error: text });
-      reportError(value instanceof ApiError ? value : new Error(text));
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-
-  async function checkSource(event: FormEvent) {
-    event.preventDefault();
-    if (busyRef.current || importing) return;
-    const source = sourceType === "file" ? file : url.trim();
-    if (!source) {
-      reportError(
-        new Error("Choose an audio file or enter a direct audio URL."),
-      );
-      return;
-    }
-    busyRef.current = true;
-    setError(null);
-    setProbing(true);
-    const controller = new AbortController();
-    requestRef.current?.abort();
-    requestRef.current = controller;
-    try {
-      const durationSeconds = await probeAudio(source, controller.signal);
-      if (controller.signal.aborted) return;
-      const next = { source, durationSeconds };
-      if (track) setCandidate(next);
-      else await persist(next);
-    } catch (value) {
-      if (!controller.signal.aborted) reportError(value);
-    } finally {
-      if (!controller.signal.aborted) {
-        setProbing(false);
-        busyRef.current = false;
-      }
-    }
-  }
-
-  async function continueImport(exportFirst: boolean) {
-    if (!candidate || importing || busyRef.current) return;
-    setError(null);
-    if (exportFirst && track) {
-      try {
-        downloadTrackLrc(track);
-      } catch {
-        reportError(
-          new Error(
-            "The download could not start. Try exporting again or continue without exporting.",
-          ),
-        );
-        return;
-      }
-    }
-    busyRef.current = true;
-    try {
-      await persist(candidate);
-    } finally {
-      busyRef.current = false;
-    }
-  }
-
-  function close() {
-    if (importing) return;
-    requestRef.current?.abort();
-    dispatch({ type: "closeImport" });
-  }
 
   function containKeys(event: KeyboardEvent<HTMLDialogElement>) {
     event.stopPropagation();
@@ -273,7 +128,7 @@ function LoadSongDialog() {
             ) : null}
           </>
         ) : (
-          <form id={sourceFormId} onSubmit={(event) => void checkSource(event)}>
+          <form id={sourceFormId} onSubmit={(event) => { event.preventDefault(); void checkSource(); }}>
             <p
               id="load-song-description"
               className="p-2 border border-(--color-primary) bg-(--color-surface-muted) text-sm rounded-lg"
@@ -372,10 +227,7 @@ function LoadSongDialog() {
               onClick={(event) => {
                 // This button may become the source form's submit button after rendering.
                 event.preventDefault();
-                setCandidate(null);
-                setFile(null);
-                setError(null);
-                dispatch({ type: "openImport" });
+                chooseAnotherSource();
               }}
             >
               Choose another source

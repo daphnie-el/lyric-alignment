@@ -1,3 +1,4 @@
+import { useSongImportContext } from "../context/SongImportContext";
 import {
   autoUpdate,
   flip,
@@ -85,7 +86,8 @@ function readDismissed() {
 }
 
 export default function EditorWalkthrough() {
-  const { status, track, importDialogOpen, importing, saving, interacting } = useEditorState();
+  const { status, track, saving, interacting } = useEditorState();
+  const { dialogOpen: importDialogOpen, importing } = useSongImportContext();
   const [dismissed, setDismissed] = useState(readDismissed);
   const [requested, setRequested] = useState(false);
   const helpRef = useRef<HTMLButtonElement>(null);

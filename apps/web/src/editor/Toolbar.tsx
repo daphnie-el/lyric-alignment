@@ -7,13 +7,14 @@ import ThemeToggle from "../components/ThemeToggle";
 import { useEditorDispatch, useEditorState } from "../context/EditorContext";
 import { formatTime } from "../utils/formatTime";
 import { downloadTrackLrc } from "../utils/helpers";
+import { useSongImportContext } from "../context/SongImportContext";
 export default function Toolbar() {
+  const { importing, open } = useSongImportContext();
   const {
     track,
     status,
     interacting,
     saving,
-    importing,
     unsavedChanges,
     saveConflict,
   } = useEditorState();
@@ -46,7 +47,7 @@ export default function Toolbar() {
         id="load-song"
         color="primary"
         disabled={status === "loading" || saving || importing || interacting}
-        onClick={() => dispatch({ type: "openImport" })}
+        onClick={open}
         className="font-semibold"
       >
         Load song
